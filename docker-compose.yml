@@ -1,16 +1,4 @@
 services:
-  db:
-    image: postgres:16-alpine
-    env_file: .env
-    volumes:
-      - gantt_pgdata:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "gantt"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   gantt:
     build:
       context: .
@@ -18,9 +6,4 @@ services:
     env_file: .env
     ports:
       - "8200:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-
-volumes:
-  gantt_pgdata:
+    restart: unless-stopped
