@@ -21,6 +21,7 @@ def _row_to_dict(r) -> dict:
         "parent": r["parent"],
         "type": r["type"],
         "assignee": r["assignee"],
+        "status": r["status"],
         "open": True,
     }
 
@@ -35,6 +36,7 @@ async def _parse_form(request: Request) -> dict:
         "parent": int(form.get("parent", 0)),
         "type": form.get("type", "task"),
         "assignee": form.get("assignee") or None,
+        "status": form.get("status") or None,
     }
 
 
@@ -64,10 +66,10 @@ async def create_task(request: Request):
     async with pool.acquire() as conn:
         new_id = await conn.fetchval(
             """INSERT INTO gantt_tasks
-               (text, start_date, duration, progress, parent, type, assignee)
-               VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
+               (text, start_date, duration, progress, parent, type, assignee, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id""",
             t["text"], t["start_date"], t["duration"],
-            t["progress"], t["parent"], t["type"], t["assignee"],
+            t["progress"], t["parent"], t["type"], t["assignee"], t["status"],
         )
     return {"action": "inserted", "tid": new_id}
 
@@ -80,10 +82,10 @@ async def update_task(task_id: int, request: Request):
         await conn.execute(
             """UPDATE gantt_tasks SET
                text=$1, start_date=$2, duration=$3, progress=$4,
-               parent=$5, type=$6, assignee=$7, updated_at=NOW()
-               WHERE id=$8""",
+               parent=$5, type=$6, assignee=$7, status=$8, updated_at=NOW()
+               WHERE id=$9""",
             t["text"], t["start_date"], t["duration"], t["progress"],
-            t["parent"], t["type"], t["assignee"], task_id,
+            t["parent"], t["type"], t["assignee"], t["status"], task_id,
         )
     return {"action": "updated"}
 

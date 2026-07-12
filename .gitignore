@@ -1,4 +1,4 @@
-# Environment
+# Environment (secrets)
 .env
 
 # Python
@@ -16,10 +16,9 @@ venv/
 .idea/
 *.swp
 *.swo
+
+# OS
 .DS_Store
 
-# Docker volumes
-gantt_pgdata/
-
-# Copied static (built at docker build time)
+# Generated at Docker build time (frontend copied into backend/static/)
 backend/static/

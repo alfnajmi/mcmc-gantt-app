@@ -20,6 +20,7 @@
     background: #fff; cursor: pointer; font-size: 13px;
   }
   #toolbar button:hover { background: #f0f0f0; }
+  #toolbar button.active { background: #e0e0e0; font-weight: 600; }
   #toolbar .spacer { flex: 1; }
   #gantt_here { width: 100%; height: calc(100% - 46px); }
 </style>
@@ -29,9 +30,9 @@
 <div id="toolbar">
   <button onclick="addTask()">+ New task</button>
   <span class="spacer"></span>
-  <button onclick="setScale('day')">Day</button>
-  <button onclick="setScale('week')">Week</button>
-  <button onclick="setScale('month')">Month</button>
+  <button id="btn-day" onclick="setScale('day')">Day</button>
+  <button id="btn-week" onclick="setScale('week')">Week</button>
+  <button id="btn-month" onclick="setScale('month')">Month</button>
 </div>
 <div id="gantt_here"></div>
 
@@ -47,20 +48,29 @@ gantt.config.open_tree_initially = true;
 
 // grid columns
 gantt.config.columns = [
-  { name: "text",     label: "Task",     tree: true, width: 220, resize: true },
-  { name: "start_date", label: "Start",  align: "center", width: 90 },
-  { name: "duration", label: "Days",     align: "center", width: 50 },
-  { name: "assignee", label: "Assignee", align: "center", width: 100 },
-  { name: "add",      width: 40 }
+  { name: "text",       label: "Task",     tree: true, width: 220, resize: true },
+  { name: "start_date", label: "Start",    align: "center", width: 90 },
+  { name: "duration",   label: "Days",     align: "center", width: 50 },
+  { name: "status",     label: "Status",   align: "center", width: 100 },
+  { name: "assignee",   label: "Assignee", align: "center", width: 100 },
+  { name: "add",        width: 40 }
 ];
 
-// lightbox (task edit popup) — add assignee field
+// lightbox (task edit popup) — includes status and assignee
 gantt.config.lightbox.sections = [
   { name: "description", height: 60, map_to: "text", type: "textarea", focus: true },
+  { name: "status",      height: 30, map_to: "status", type: "select", options: [
+      { key: "",            label: "— None —" },
+      { key: "to do",       label: "To Do" },
+      { key: "planning",    label: "Planning" },
+      { key: "in progress", label: "In Progress" },
+      { key: "complete",    label: "Complete" }
+  ]},
   { name: "assignee",    height: 30, map_to: "assignee", type: "textarea" },
   { name: "type",        type: "typeselect", map_to: "type" },
   { name: "time",        type: "duration", map_to: "auto" }
 ];
+gantt.locale.labels.section_status = "Status";
 gantt.locale.labels.section_assignee = "Assignee";
 
 // zoom levels
@@ -74,21 +84,30 @@ function setScale(level) {
   };
   gantt.config.scales = scales[level];
   gantt.render();
+
+  // highlight active button
+  document.querySelectorAll("#toolbar button[id^='btn-']").forEach(function(b) {
+    b.classList.remove("active");
+  });
+  var btn = document.getElementById("btn-" + level);
+  if (btn) btn.classList.add("active");
 }
-setScale("week");
+
+// Default to Month view (project timeline spans 2026–2029)
+setScale("month");
 
 // ---- init + load ----
 gantt.init("gantt_here");
 gantt.load(API + "/api/data");
 
 // ---- save every edit back to the API automatically ----
-const dp = gantt.createDataProcessor({
+var dp = gantt.createDataProcessor({
   url: API + "/api",
   mode: "REST"
 });
 
 function addTask() {
-  gantt.createTask({ text: "New task", duration: 3 });
+  gantt.createTask({ text: "New task", duration: 3, status: "" });
 }
 </script>
 </body>
