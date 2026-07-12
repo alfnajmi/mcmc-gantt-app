@@ -101,3 +101,17 @@ async def delete_task(task_id: int):
             "DELETE FROM gantt_tasks WHERE id=$1 OR parent=$1", task_id
         )
     return {"action": "deleted"}
+
+
+@router.post("/reorder")
+async def reorder_tasks(request: Request):
+    """Bulk update sort_order for a list of tasks."""
+    body = await request.json()
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for item in body:
+            await conn.execute(
+                "UPDATE gantt_tasks SET sort_order=$1 WHERE id=$2",
+                item["sort_order"], item["id"],
+            )
+    return {"action": "reordered", "count": len(body)}
