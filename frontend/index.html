@@ -23,6 +23,7 @@
   #toolbar button.active { background: #e0e0e0; font-weight: 600; }
   #toolbar .spacer { flex: 1; }
   #gantt_here { width: 100%; height: calc(100% - 46px); }
+  .today-cell { background: rgba(229, 57, 53, 0.08); border-left: 2px solid #e53935; }
 </style>
 </head>
 <body>
@@ -95,6 +96,17 @@ function setScale(level) {
 
 // Default to Month view (project timeline spans 2026–2029)
 setScale("month");
+
+// ---- Draw a "today" vertical line (no plugin needed) ----
+gantt.templates.timeline_cell_class = function(task, date) {
+  var today = new Date();
+  if (date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate()) {
+    return "today-cell";
+  }
+  return "";
+};
 
 // ---- init + load ----
 gantt.init("gantt_here");
