@@ -39,12 +39,10 @@ external Postgres. All edits from the Gantt UI write directly here.
 ```
 gantt-app/
 ├── docker-compose.yml          # Production/staging (external DB)
-├── docker-compose.local.yml    # Local dev override (bundled Postgres + sample data)
 ├── .env.example                # Environment variable template
 ├── .gitignore
 ├── db/
 │   ├── init.sql                # Idempotent schema (gantt_tasks, gantt_links)
-│   ├── sample_data.sql         # Sample data for local development only
 │   └── migrate_from_persada.sql  # One-time migration reference (ALREADY EXECUTED)
 ├── backend/
 │   ├── Dockerfile
@@ -95,21 +93,6 @@ cd ~/disd/git/gantt-app
 git pull
 docker compose up --build -d
 ```
-
----
-
-## Local Development
-
-For local development with a throwaway Postgres and sample data:
-
-```bash
-cp .env.example .env
-# DATABASE_URL will be overridden by docker-compose.local.yml
-
-docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
-```
-
-Open http://localhost:8200 — sample tasks appear in the chart.
 
 ---
 
