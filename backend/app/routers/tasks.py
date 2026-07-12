@@ -22,12 +22,14 @@ def _row_to_dict(r) -> dict:
         "type": r["type"],
         "assignee": r["assignee"],
         "status": r["status"],
+        "sort_order": r["sort_order"],
         "open": True,
     }
 
 
 async def _parse_form(request: Request) -> dict:
     form = await request.form()
+    sort_order_raw = form.get("sort_order")
     return {
         "text": form.get("text", "New task"),
         "start_date": datetime.strptime(form.get("start_date"), DATE_FMT),
@@ -37,6 +39,7 @@ async def _parse_form(request: Request) -> dict:
         "type": form.get("type", "task"),
         "assignee": form.get("assignee") or None,
         "status": form.get("status") or None,
+        "sort_order": int(sort_order_raw) if sort_order_raw is not None else 0,
     }
 
 
@@ -82,10 +85,10 @@ async def update_task(task_id: int, request: Request):
         await conn.execute(
             """UPDATE gantt_tasks SET
                text=$1, start_date=$2, duration=$3, progress=$4,
-               parent=$5, type=$6, assignee=$7, status=$8, updated_at=NOW()
-               WHERE id=$9""",
+               parent=$5, type=$6, assignee=$7, status=$8, sort_order=$9, updated_at=NOW()
+               WHERE id=$10""",
             t["text"], t["start_date"], t["duration"], t["progress"],
-            t["parent"], t["type"], t["assignee"], t["status"], task_id,
+            t["parent"], t["type"], t["assignee"], t["status"], t["sort_order"], task_id,
         )
     return {"action": "updated"}
 

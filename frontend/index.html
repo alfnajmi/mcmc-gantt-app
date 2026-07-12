@@ -106,6 +106,22 @@ var dp = gantt.createDataProcessor({
   mode: "REST"
 });
 
+// Persist row order after drag-reorder
+gantt.attachEvent("onRowDragEnd", function(id, target) {
+  // Update sort_order for all siblings in the same parent
+  var task = gantt.getTask(id);
+  var parent = task.parent || 0;
+  var children = gantt.getChildren(parent);
+  for (var i = 0; i < children.length; i++) {
+    var child = gantt.getTask(children[i]);
+    if (child.sort_order !== i) {
+      child.sort_order = i;
+      gantt.updateTask(children[i]);
+    }
+  }
+  return true;
+});
+
 function addTask() {
   gantt.createTask({ text: "New task", duration: 3, status: "" });
 }
