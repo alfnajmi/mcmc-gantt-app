@@ -23,6 +23,8 @@
   #toolbar button.active { background: #e0e0e0; font-weight: 600; }
   #toolbar .spacer { flex: 1; }
   #gantt_here { width: 100%; height: calc(100% - 46px); }
+  .today-marker .gantt_marker_content { background: #e53935; }
+  .today-marker { background: #e53935; width: 2px; opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -96,9 +98,22 @@ function setScale(level) {
 // Default to Month view (project timeline spans 2026–2029)
 setScale("month");
 
+// Show today marker line
+gantt.plugins({ marker: true });
+var today = new Date();
+gantt.addMarker({
+  start_date: today,
+  css: "today-marker",
+  text: "Today",
+  title: "Today: " + today.toLocaleDateString()
+});
+
 // ---- init + load ----
 gantt.init("gantt_here");
-gantt.load(API + "/api/data");
+gantt.load(API + "/api/data", function() {
+  // Scroll timeline to today after data loads
+  gantt.showDate(new Date());
+});
 
 // ---- save every edit back to the API automatically ----
 var dp = gantt.createDataProcessor({
