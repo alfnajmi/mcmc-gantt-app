@@ -43,7 +43,9 @@ gantt-app/
 ├── .gitignore
 ├── db/
 │   ├── init.sql                # Idempotent schema (gantt_tasks, gantt_links)
-│   └── migrate_from_persada.sql  # One-time migration reference (ALREADY EXECUTED)
+│   ├── migrate_from_persada.sql  # One-time migration reference (ALREADY EXECUTED)
+│   └── migrations/
+│       └── 001_init_sort_order.sql  # Fix sort_order values (ALREADY EXECUTED)
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -52,7 +54,7 @@ gantt-app/
 │       ├── database.py         # asyncpg connection pool
 │       ├── main.py             # FastAPI entry point
 │       └── routers/
-│           ├── tasks.py        # /api/data, /api/task CRUD
+│           ├── tasks.py        # /api/data, /api/task CRUD, /api/reorder
 │           └── links.py        # /api/link CRUD
 └── frontend/
     └── index.html              # DHTMLX Gantt (month view, status field, zoom controls)
@@ -120,6 +122,29 @@ Current production data: 6 workstream projects, 78 tasks, 14 milestones.
 **WARNING:** Never re-run the CSV import or migration script against production.
 The `gantt_tasks` table is the live source of truth — any re-import will
 destroy manual edits made through the Gantt chart UI.
+
+---
+
+## Database Migrations
+
+Migrations live in `db/migrations/` as numbered SQL files. Run them with:
+
+```bash
+psql -h 192.168.71.145 -U superset_analytics -d superset_analytics_db -f db/migrations/001_init_sort_order.sql
+```
+
+| Migration | Description | Status |
+|-----------|-------------|--------|
+| `001_init_sort_order.sql` | Set sequential `sort_order` so row drag-reorder persists | Executed 2026-07-12 |
+
+### Running a new migration
+
+```bash
+# From the server (or anywhere with psql access to the DB)
+psql -h 192.168.71.145 -U superset_analytics -d superset_analytics_db -f db/migrations/<NNN>_description.sql
+```
+
+After running, mark it as executed in the file header and commit.
 
 ---
 
