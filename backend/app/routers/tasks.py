@@ -1,0 +1,98 @@
+"""Task CRUD endpoints — matches DHTMLX dataProcessor REST format."""
+
+from datetime import datetime
+
+from fastapi import APIRouter, Request
+
+from app.database import get_pool
+
+router = APIRouter(prefix="/api", tags=["tasks"])
+
+DATE_FMT = "%Y-%m-%d %H:%M"
+
+
+def _row_to_dict(r) -> dict:
+    return {
+        "id": r["id"],
+        "text": r["text"],
+        "start_date": r["start_date"].strftime(DATE_FMT),
+        "duration": r["duration"],
+        "progress": r["progress"],
+        "parent": r["parent"],
+        "type": r["type"],
+        "assignee": r["assignee"],
+        "open": True,
+    }
+
+
+async def _parse_form(request: Request) -> dict:
+    form = await request.form()
+    return {
+        "text": form.get("text", "New task"),
+        "start_date": datetime.strptime(form.get("start_date"), DATE_FMT),
+        "duration": int(form.get("duration", 1)),
+        "progress": float(form.get("progress", 0)),
+        "parent": int(form.get("parent", 0)),
+        "type": form.get("type", "task"),
+        "assignee": form.get("assignee") or None,
+    }
+
+
+@router.get("/data")
+async def get_data():
+    """Load all tasks and links (initial chart payload)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        tasks = await conn.fetch(
+            "SELECT * FROM gantt_tasks ORDER BY sort_order, id"
+        )
+        links = await conn.fetch("SELECT * FROM gantt_links ORDER BY id")
+    return {
+        "data": [_row_to_dict(t) for t in tasks],
+        "links": [
+            {"id": l["id"], "source": l["source"],
+             "target": l["target"], "type": l["type"]}
+            for l in links
+        ],
+    }
+
+
+@router.post("/task")
+async def create_task(request: Request):
+    t = await _parse_form(request)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        new_id = await conn.fetchval(
+            """INSERT INTO gantt_tasks
+               (text, start_date, duration, progress, parent, type, assignee)
+               VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
+            t["text"], t["start_date"], t["duration"],
+            t["progress"], t["parent"], t["type"], t["assignee"],
+        )
+    return {"action": "inserted", "tid": new_id}
+
+
+@router.put("/task/{task_id}")
+async def update_task(task_id: int, request: Request):
+    t = await _parse_form(request)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE gantt_tasks SET
+               text=$1, start_date=$2, duration=$3, progress=$4,
+               parent=$5, type=$6, assignee=$7, updated_at=NOW()
+               WHERE id=$8""",
+            t["text"], t["start_date"], t["duration"], t["progress"],
+            t["parent"], t["type"], t["assignee"], task_id,
+        )
+    return {"action": "updated"}
+
+
+@router.delete("/task/{task_id}")
+async def delete_task(task_id: int):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM gantt_tasks WHERE id=$1 OR parent=$1", task_id
+        )
+    return {"action": "deleted"}

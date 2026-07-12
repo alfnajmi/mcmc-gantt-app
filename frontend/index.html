@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project Gantt</title>
+
+<!-- DHTMLX Gantt GPL edition from CDN. For production, `npm install dhtmlx-gantt` and bundle it. -->
+<script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
+<link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" />
+
+<style>
+  html, body { height: 100%; margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-bottom: 1px solid #e0e0e0; background: #fafafa;
+  }
+  #toolbar button {
+    padding: 6px 12px; border: 1px solid #c9c9c9; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 13px;
+  }
+  #toolbar button:hover { background: #f0f0f0; }
+  #toolbar .spacer { flex: 1; }
+  #gantt_here { width: 100%; height: calc(100% - 46px); }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <button onclick="addTask()">+ New task</button>
+  <span class="spacer"></span>
+  <button onclick="setScale('day')">Day</button>
+  <button onclick="setScale('week')">Week</button>
+  <button onclick="setScale('month')">Month</button>
+</div>
+<div id="gantt_here"></div>
+
+<script>
+const API = "";  // same origin; set to e.g. "https://gantt.mycompany.com" if hosted separately
+
+// ---- configuration ----
+gantt.config.date_format = "%Y-%m-%d %H:%i";
+gantt.config.drag_progress = true;
+gantt.config.drag_links = true;
+gantt.config.order_branch = true;          // drag rows to reorder
+gantt.config.open_tree_initially = true;
+
+// grid columns
+gantt.config.columns = [
+  { name: "text",     label: "Task",     tree: true, width: 220, resize: true },
+  { name: "start_date", label: "Start",  align: "center", width: 90 },
+  { name: "duration", label: "Days",     align: "center", width: 50 },
+  { name: "assignee", label: "Assignee", align: "center", width: 100 },
+  { name: "add",      width: 40 }
+];
+
+// lightbox (task edit popup) — add assignee field
+gantt.config.lightbox.sections = [
+  { name: "description", height: 60, map_to: "text", type: "textarea", focus: true },
+  { name: "assignee",    height: 30, map_to: "assignee", type: "textarea" },
+  { name: "type",        type: "typeselect", map_to: "type" },
+  { name: "time",        type: "duration", map_to: "auto" }
+];
+gantt.locale.labels.section_assignee = "Assignee";
+
+// zoom levels
+function setScale(level) {
+  const scales = {
+    day:   [{ unit: "day",   step: 1, format: "%d %M" }],
+    week:  [{ unit: "week",  step: 1, format: "Week #%W" },
+            { unit: "day",   step: 1, format: "%d" }],
+    month: [{ unit: "month", step: 1, format: "%F %Y" },
+            { unit: "week",  step: 1, format: "%W" }]
+  };
+  gantt.config.scales = scales[level];
+  gantt.render();
+}
+setScale("week");
+
+// ---- init + load ----
+gantt.init("gantt_here");
+gantt.load(API + "/api/data");
+
+// ---- save every edit back to the API automatically ----
+const dp = gantt.createDataProcessor({
+  url: API + "/api",
+  mode: "REST"
+});
+
+function addTask() {
+  gantt.createTask({ text: "New task", duration: 3 });
+}
+</script>
+</body>
+</html>
