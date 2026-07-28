@@ -22,3 +22,4 @@ venv/
 
 # Generated at Docker build time (frontend copied into backend/static/)
 backend/static/
+node_modules
