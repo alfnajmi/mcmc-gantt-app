@@ -7,45 +7,155 @@
 <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
 <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" />
 <style>
-  html, body { height: 100%; margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-  #toolbar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; border-bottom: 1px solid #e0e0e0; background: #fafafa;
-  }
-  #toolbar button {
-    padding: 6px 12px; border: 1px solid #c9c9c9; border-radius: 6px;
-    background: #fff; cursor: pointer; font-size: 13px;
-  }
-  #toolbar button:hover { background: #f0f0f0; }
-  #toolbar button.active { background: #e0e0e0; font-weight: 600; }
-  #toolbar .spacer { flex: 1; }
-  #toolbar .project-title { font-size: 14px; font-weight: 700; color: #1e293b; }
-  #gantt_here { width: 100%; height: calc(100% - 46px); }
-  .today-cell { background: rgba(229, 57, 53, 0.08); border-left: 2px solid #e53935; }
+:root {
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #1e293b;
+  --color-muted: #64748b;
+  --color-primary: #2563eb;
+  --color-project: #2563eb;
+  --color-task: #10b981;
+  --color-milestone: #f59e0b;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--color-bg); color: var(--color-text); }
+
+/* --- Header --- */
+.page-header {
+  padding: 24px 28px 0;
+}
+.header-top {
+  display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px;
+}
+.header-meta { }
+.header-tag {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--color-primary); background: #eff6ff;
+  padding: 3px 8px; border-radius: 4px; margin-bottom: 8px;
+}
+.header-title { font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
+.header-desc { font-size: 13px; color: var(--color-muted); max-width: 500px; }
+
+/* --- Controls bar --- */
+.controls {
+  display: flex; align-items: center; gap: 6px; padding: 10px 28px;
+  border-bottom: 1px solid var(--color-border); background: var(--color-surface);
+  flex-wrap: wrap;
+}
+.controls .group { display: flex; gap: 2px; background: #f1f5f9; border-radius: 6px; padding: 2px; }
+.controls button {
+  padding: 6px 12px; border: none; border-radius: 5px;
+  background: transparent; cursor: pointer; font-size: 12px; font-weight: 500;
+  color: var(--color-muted); transition: all 0.15s;
+}
+.controls button:hover { background: #e2e8f0; color: var(--color-text); }
+.controls button.active { background: var(--color-surface); color: var(--color-text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.controls .sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 6px; }
+.controls .spacer { flex: 1; }
+
+/* Legend */
+.legend { display: flex; align-items: center; gap: 12px; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-muted); }
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+.legend-swatch.project { background: var(--color-project); }
+.legend-swatch.task { background: var(--color-task); }
+.legend-swatch.milestone { background: var(--color-milestone); width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
+
+/* --- Gantt container --- */
+#gantt_here { width: 100%; height: calc(100vh - 145px); }
+
+/* --- DHTMLX theme overrides --- */
+.gantt_task_line.gantt_project {
+  background: var(--color-project) !important;
+  border-color: var(--color-project) !important;
+  border-radius: 4px;
+}
+.gantt_task_line.gantt_task {
+  background: var(--color-task) !important;
+  border-color: var(--color-task) !important;
+  border-radius: 4px;
+}
+.gantt_task_line.milestone_task {
+  background: var(--color-milestone) !important;
+  border-color: var(--color-milestone) !important;
+}
+.gantt_task_line .gantt_task_progress {
+  background: rgba(0,0,0,0.15);
+  border-radius: 4px;
+}
+.today-marker {
+  background: rgba(229, 57, 53, 0.08);
+  border-left: 2px solid #e53935;
+}
+.gantt_grid_head_cell { font-size: 11px; font-weight: 600; color: var(--color-muted); text-transform: uppercase; }
+.gantt_tree_content { font-size: 13px; }
+.gantt_row.gantt_project .gantt_tree_content { font-weight: 700; }
+
+/* Read-only: hide add column */
+.readonly-mode .gantt_grid_head_cell:last-child,
+.readonly-mode .gantt_cell:last-child { display: none; }
 </style>
 </head>
 <body>
 
-<div id="toolbar">
-  <span class="project-title" id="project-name">Loading...</span>
-  <span class="spacer"></span>
-  <button onclick="addTask()">+ New task</button>
-  <button id="btn-day" onclick="setScale('day')">Day</button>
-  <button id="btn-week" onclick="setScale('week')">Week</button>
-  <button id="btn-month" onclick="setScale('month')">Month</button>
+<!-- Header -->
+<div class="page-header">
+  <div class="header-top">
+    <div class="header-meta">
+      <span class="header-tag">Programme Timeline</span>
+      <h1 class="header-title" id="project-title">Loading...</h1>
+      <p class="header-desc" id="project-desc"></p>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch project"></span> Project</span>
+      <span class="legend-item"><span class="legend-swatch task"></span> Task</span>
+      <span class="legend-item"><span class="legend-swatch milestone"></span> Milestone</span>
+    </div>
+  </div>
 </div>
+
+<!-- Controls bar -->
+<div class="controls">
+  <div class="group" id="zoom-group">
+    <button onclick="setScale('year')" id="btn-year">Years</button>
+    <button onclick="setScale('month')" id="btn-month">Months</button>
+    <button onclick="setScale('week')" id="btn-week">Weeks</button>
+    <button onclick="setScale('day')" id="btn-day">Days</button>
+  </div>
+  <span class="sep"></span>
+  <button onclick="expandAll()">Expand all</button>
+  <button onclick="collapseAll()">Collapse</button>
+  <button onclick="scrollToToday()">Today →</button>
+  <span class="spacer"></span>
+  <button onclick="addTask()" id="btn-add" style="display:none;">+ New task</button>
+</div>
+
+<!-- Gantt chart -->
 <div id="gantt_here"></div>
 
 <script>
-// Resolve project slug from URL: /project/:slug or /embed/:slug
+// --- Resolve project ---
 const pathParts = window.location.pathname.split("/").filter(Boolean);
 const SLUG = pathParts[pathParts.length - 1] || "persada-phase-1";
 const API_BASE = `/api/projects/${SLUG}`;
-
-// Check if embed mode (read-only)
 const IS_EMBED = pathParts[0] === "embed";
 
-// ---- configuration ----
+if (IS_EMBED) document.body.classList.add("readonly-mode");
+if (!IS_EMBED) document.getElementById("btn-add").style.display = "";
+
+// --- Load project metadata ---
+fetch(`/api/projects/${SLUG}`).then(r => r.json()).then(p => {
+  document.getElementById("project-title").textContent = p.title || SLUG;
+  document.getElementById("project-desc").textContent = p.description || "";
+  document.title = `${p.title} — Gantt`;
+}).catch(() => {
+  document.getElementById("project-title").textContent = SLUG;
+});
+
+// --- Gantt configuration ---
 gantt.config.date_format = "%Y-%m-%d %H:%i";
 gantt.config.drag_progress = !IS_EMBED;
 gantt.config.drag_links = !IS_EMBED;
@@ -54,85 +164,90 @@ gantt.config.drag_resize = !IS_EMBED;
 gantt.config.order_branch = !IS_EMBED;
 gantt.config.open_tree_initially = true;
 gantt.config.readonly = IS_EMBED;
-
-// Project bars auto-stretch to cover child tasks
 gantt.config.auto_types = true;
 gantt.config.fit_tasks = true;
+gantt.config.row_height = 36;
+gantt.config.bar_height = 22;
 
-// grid columns
+// Grid columns
 gantt.config.columns = [
-  { name: "text",       label: "Task",     tree: true, width: 220, resize: true },
-  { name: "start_date", label: "Start",    align: "center", width: 90 },
-  { name: "duration",   label: "Days",     align: "center", width: 50 },
-  { name: "status",     label: "Status",   align: "center", width: 100 },
-  { name: "assignee",   label: "Assignee", align: "center", width: 100 },
+  { name: "text", label: "Task", tree: true, width: 260, resize: true },
+  { name: "start_date", label: "Start", align: "center", width: 85 },
+  { name: "duration", label: "Days", align: "center", width: 45 },
+  { name: "status", label: "Status", align: "center", width: 90 },
 ];
 if (!IS_EMBED) {
-  gantt.config.columns.push({ name: "add", width: 40 });
+  gantt.config.columns.push({ name: "add", width: 36 });
 }
 
-// lightbox
+// Lightbox
 gantt.config.lightbox.sections = [
-  { name: "description", height: 60, map_to: "text", type: "textarea", focus: true },
-  { name: "status",      height: 30, map_to: "status", type: "select", options: [
-      { key: "",            label: "— None —" },
-      { key: "to do",       label: "To Do" },
-      { key: "planning",    label: "Planning" },
+  { name: "description", height: 50, map_to: "text", type: "textarea", focus: true },
+  { name: "status", height: 30, map_to: "status", type: "select", options: [
+      { key: "", label: "— None —" },
+      { key: "to do", label: "To Do" },
+      { key: "planning", label: "Planning" },
       { key: "in progress", label: "In Progress" },
-      { key: "complete",    label: "Complete" }
+      { key: "complete", label: "Complete" }
   ]},
-  { name: "assignee",    height: 30, map_to: "assignee", type: "textarea" },
-  { name: "type",        type: "typeselect", map_to: "type" },
-  { name: "time",        type: "duration", map_to: "auto" }
+  { name: "assignee", height: 30, map_to: "assignee", type: "textarea" },
+  { name: "type", type: "typeselect", map_to: "type" },
+  { name: "time", type: "duration", map_to: "auto" }
 ];
 gantt.locale.labels.section_status = "Status";
 gantt.locale.labels.section_assignee = "Assignee";
 
-// zoom levels
-function setScale(level) {
-  const scales = {
-    day:   [{ unit: "day",   step: 1, format: "%d %M" }],
-    week:  [{ unit: "week",  step: 1, format: "Week #%W" },
-            { unit: "day",   step: 1, format: "%d" }],
-    month: [{ unit: "month", step: 1, format: "%F %Y" },
-            { unit: "week",  step: 1, format: "%W" }]
-  };
-  gantt.config.scales = scales[level];
-  gantt.render();
-  document.querySelectorAll("#toolbar button[id^='btn-']").forEach(b => b.classList.remove("active"));
-  const btn = document.getElementById("btn-" + level);
-  if (btn) btn.classList.add("active");
-}
-setScale("month");
+// --- Task styling (CSS class per type) ---
+gantt.templates.task_class = function(start, end, task) {
+  if (task.type === "project") return "gantt_project";
+  if (task.type === "milestone") return "milestone_task";
+  return "gantt_task";
+};
 
-// Today line
+// Today marker
 gantt.templates.timeline_cell_class = function(task, date) {
   const today = new Date();
   if (date.getFullYear() === today.getFullYear() &&
       date.getMonth() === today.getMonth() &&
       date.getDate() === today.getDate()) {
-    return "today-cell";
+    return "today-marker";
   }
   return "";
 };
 
-// ---- init + load ----
+// --- Zoom scales ---
+const SCALES = {
+  year: [{ unit: "year", step: 1, format: "%Y" }, { unit: "month", step: 3, format: "%M" }],
+  month: [{ unit: "month", step: 1, format: "%F %Y" }, { unit: "week", step: 1, format: "%W" }],
+  week: [{ unit: "week", step: 1, format: "Week %W" }, { unit: "day", step: 1, format: "%d %D" }],
+  day: [{ unit: "day", step: 1, format: "%d %M" }],
+};
+
+function setScale(level) {
+  gantt.config.scales = SCALES[level] || SCALES.month;
+  gantt.render();
+  document.querySelectorAll("#zoom-group button").forEach(b => b.classList.remove("active"));
+  const btn = document.getElementById("btn-" + level);
+  if (btn) btn.classList.add("active");
+}
+
+function expandAll() { gantt.eachTask(function(t) { t.$open = true; }); gantt.render(); }
+function collapseAll() { gantt.eachTask(function(t) { t.$open = false; }); gantt.render(); }
+function scrollToToday() { gantt.showDate(new Date()); }
+function addTask() { if (!IS_EMBED) gantt.createTask({ text: "New task", duration: 3 }); }
+
+// Default scale
+setScale("month");
+
+// --- Init + load ---
 gantt.init("gantt_here");
 gantt.load(API_BASE + "/data", function() {
   gantt.showDate(new Date());
-  // Set title from project metadata
-  fetch(`/api/projects/${SLUG}`).then(r => r.json()).then(p => {
-    document.getElementById("project-name").textContent = p.title || SLUG;
-    document.title = p.title + " — Gantt";
-  }).catch(() => {});
 });
 
-// ---- save edits ----
+// --- DataProcessor (save edits) ---
 if (!IS_EMBED) {
-  var dp = gantt.createDataProcessor({
-    url: API_BASE,
-    mode: "REST"
-  });
+  var dp = gantt.createDataProcessor({ url: API_BASE, mode: "REST" });
 
   gantt.attachEvent("onRowDragEnd", function(id, target) {
     var task = gantt.getTask(id);
@@ -148,16 +263,6 @@ if (!IS_EMBED) {
     });
     return true;
   });
-}
-
-function addTask() {
-  if (!IS_EMBED) gantt.createTask({ text: "New task", duration: 3, status: "" });
-}
-
-// Hide toolbar in embed mode
-if (IS_EMBED) {
-  document.getElementById("toolbar").style.display = "none";
-  document.getElementById("gantt_here").style.height = "100%";
 }
 </script>
 </body>
