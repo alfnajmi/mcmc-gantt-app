@@ -164,14 +164,15 @@ function renderProjects(projects) {
     return;
   }
   el.innerHTML = projects.map(p => `
-    <div class="project-card">
+    <div class="project-card" id="card-${p.slug}">
       <div class="project-info">
-        <div class="project-title">${esc(p.title)}</div>
+        <div class="project-title" id="title-${p.slug}">${esc(p.title)}</div>
         <div class="project-slug">${esc(p.slug)}</div>
-        ${p.description ? `<div class="project-desc">${esc(p.description)}</div>` : ""}
+        ${p.description ? `<div class="project-desc" id="desc-${p.slug}">${esc(p.description)}</div>` : `<div class="project-desc" id="desc-${p.slug}"></div>`}
       </div>
       <div class="project-actions">
         <button class="btn-sm" onclick="window.open('/project/${p.slug}', '_blank')">Open</button>
+        <button class="btn-sm" onclick="editProject('${p.slug}')">Edit</button>
         <button class="btn-sm" onclick="copyEmbed('${p.slug}')">Embed</button>
         <button class="btn-sm danger" onclick="deleteProject('${p.slug}')">Delete</button>
       </div>
@@ -207,6 +208,32 @@ async function createProject() {
   } else {
     const err = await res.json();
     showToast(err.detail || "Failed to create project.", true);
+  }
+}
+
+// --- Edit project ---
+async function editProject(slug) {
+  const res = await fetch(API + `/api/projects/${slug}`);
+  const p = await res.json();
+
+  const newTitle = prompt("Title:", p.title);
+  if (newTitle === null) return; // cancelled
+
+  const newDesc = prompt("Description:", p.description || "");
+  if (newDesc === null) return;
+
+  const updateRes = await fetch(API + `/api/projects/${slug}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: newTitle || p.title, description: newDesc }),
+  });
+
+  if (updateRes.ok) {
+    showToast("Project updated!");
+    loadProjects();
+  } else {
+    const err = await updateRes.json();
+    showToast(err.detail || "Failed to update.", true);
   }
 }
 
