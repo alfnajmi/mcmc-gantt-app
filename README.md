@@ -1,193 +1,233 @@
-# Gantt App (DHTMLX + FastAPI + Postgres)
+# Gantt Platform
 
-An editable Gantt chart for PERSADA project planning. Tasks are stored in an
-external PostgreSQL database (`superset_analytics_db`) shared with Superset for
-reporting. The chart is embedded in the project website via iframe.
+Multi-project Gantt chart platform. Create projects, import CSV, and embed interactive Gantt charts in any portal or website.
 
 ---
 
-## Architecture
+## How it works
 
 ```
-┌────────────────────────┐       ┌──────────────────────────────┐
-│  Project Website       │       │  Superset                    │
-│  (persada-stg)         │       │  (analytics-stg)             │
-│                        │       │                              │
-│  <iframe src="gantt"/> │       │  Charts on gantt_tasks table │
-└────────────┬───────────┘       └──────────────┬───────────────┘
-             │                                   │
-             ▼                                   ▼
-┌────────────────────────────────────────────────────────────────┐
-│  gantt-app container (FastAPI + static frontend)  :8200        │
-└────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  External PostgreSQL (192.168.71.145)                           │
-│  Database: superset_analytics_db                               │
-│  Tables:   gantt_tasks (98 rows), gantt_links                  │
-└────────────────────────────────────────────────────────────────┘
-```
-
-**Single source of truth:** `gantt_tasks` and `gantt_links` tables in the
-external Postgres. All edits from the Gantt UI write directly here.
-
----
-
-## Repository Structure
-
-```
-gantt-app/
-├── docker-compose.yml          # Production/staging (external DB)
-├── .env.example                # Environment variable template
-├── .gitignore
-├── db/
-│   ├── init.sql                # Idempotent schema (gantt_tasks, gantt_links)
-│   ├── migrate_from_persada.sql  # One-time migration reference (ALREADY EXECUTED)
-│   └── migrations/
-│       └── 001_init_sort_order.sql  # Fix sort_order values (ALREADY EXECUTED)
-├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/
-│       ├── config.py           # Env-driven config (fails fast if DATABASE_URL unset)
-│       ├── database.py         # asyncpg connection pool
-│       ├── main.py             # FastAPI entry point
-│       └── routers/
-│           ├── tasks.py        # /api/data, /api/task CRUD, /api/reorder
-│           └── links.py        # /api/link CRUD
-└── frontend/
-    └── index.html              # DHTMLX Gantt (month view, status field, zoom controls)
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Any Portal / Website                                                    │
+│                                                                          │
+│  <iframe src="https://gantt.mcmc.gov.my/embed/my-project" />             │
+│                                                                          │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Gantt Platform (single deployment, serves all projects)                 │
+│                                                                          │
+│  /admin                → manage projects, import CSV                     │
+│  /project/:slug        → full interactive editor                         │
+│  /embed/:slug          → read-only embeddable view (no toolbar)          │
+│  /api/projects         → REST API                                        │
+│                                                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  PostgreSQL                                                              │
+│  ├── gantt_projects    (project registry)                                │
+│  ├── gantt_tasks       (scoped by project_id)                            │
+│  └── gantt_links       (scoped by project_id)                            │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Staging Deployment
-
-The app runs on `mcmcdisddevapp01` alongside other services.
+## Quick start
 
 ```bash
-# 1. Clone (first time)
-cd ~/disd/git
+# 1. Clone
 git clone https://devgithub.mcmc.gov.my/mcmc/gantt-app.git
 cd gantt-app
 
-# 2. Create .env
+# 2. Configure
 cp .env.example .env
-# Edit .env:
-#   DATABASE_URL=postgresql://superset_analytics:PASSWORD@192.168.71.145:5432/superset_analytics_db
-#   CORS_ORIGINS=https://persada-stg.mcmc.gov.my
+# Edit .env with your DATABASE_URL
 
-# 3. Build and start
+# 3. Run migration (first time or after upgrade)
+psql $DATABASE_URL -f db/migrations/002_multi_project.sql
+
+# 4. Build and start
 docker compose up --build -d
 
-# 4. Verify
-curl -f http://localhost:8200/api/data | head -c 200
-docker compose ps
+# 5. Open
+open http://localhost:8200/admin
 ```
 
-The app is available at `http://<server-ip>:8200`.
+---
 
-### Updating
+## Onboarding guide (for any team)
 
+### Step 1: Create a project
+
+Go to `/admin` → fill in title and slug → click "Create project"
+
+Or via API:
 ```bash
-cd ~/disd/git/gantt-app
-git pull
-docker compose up --build -d
+curl -X POST https://gantt.mcmc.gov.my/api/projects \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My Project", "slug": "my-project"}'
 ```
 
----
+### Step 2: Add tasks
 
-## Environment Variables
+**Option A: Import CSV**
+- Go to `/admin` → "Import CSV into project"
+- Select your project and upload a CSV
+- Supported formats: ClickUp export, MS Project CSV, or any CSV with columns:
+  - `Task Name` (required)
+  - `Start Date` (required)
+  - `Due Date` or `Duration`
+  - `Parent ID` (for hierarchy)
+  - `Type` (task/milestone/project)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | Full PostgreSQL connection string |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins (empty = block all) |
-| `DB_POOL_MIN` | No | Min pool size (default: 1) |
-| `DB_POOL_MAX` | No | Max pool size (default: 10) |
+**Option B: Build manually**
+- Open `/project/my-project`
+- Click "+ New task" to add tasks
+- Drag to reorder, resize to change duration, link to create dependencies
 
-If `DATABASE_URL` is not set, the app will refuse to start.
+### Step 3: Embed in your portal
 
----
-
-## Data Migration
-
-The production data was migrated from `persada_gantt_chart` (a CSV uploaded to
-Superset) into `gantt_tasks` using `db/migrate_from_persada.sql`. This script
-has already been executed and must not be re-run against production.
-
-Current production data: 6 workstream projects, 78 tasks, 14 milestones.
-
-**WARNING:** Never re-run the CSV import or migration script against production.
-The `gantt_tasks` table is the live source of truth — any re-import will
-destroy manual edits made through the Gantt chart UI.
-
----
-
-## Database Migrations
-
-Migrations live in `db/migrations/` as numbered SQL files. Run them with:
-
-```bash
-psql -h 192.168.71.145 -U superset_analytics -d superset_analytics_db -f db/migrations/001_init_sort_order.sql
-```
-
-| Migration | Description | Status |
-|-----------|-------------|--------|
-| `001_init_sort_order.sql` | Set sequential `sort_order` so row drag-reorder persists | Executed 2026-07-12 |
-
-### Running a new migration
-
-```bash
-# From the server (or anywhere with psql access to the DB)
-psql -h 192.168.71.145 -U superset_analytics -d superset_analytics_db -f db/migrations/<NNN>_description.sql
-```
-
-After running, mark it as executed in the file header and commit.
-
----
-
-## Production Checklist
-
-- [x] External Postgres with dedicated role (`superset_analytics`) having write
-      access limited to `gantt_tasks` and `gantt_links`
-- [x] Data migrated from persada_gantt_chart (98 rows verified)
-- [ ] Restrict `CORS_ORIGINS` to the project website origin only
-- [ ] HTTPS via reverse proxy (nginx on host)
-- [ ] Authentication in front of the app (SSO at reverse proxy level or
-      session token validation in FastAPI middleware)
-- [ ] Scheduled `pg_dump` backups of `superset_analytics_db` including gantt tables
-- [ ] Self-host DHTMLX library instead of CDN (`npm install dhtmlx-gantt`)
-- [ ] Rate limiting on write endpoints
-
----
-
-## Embedding in the Project Website
+Copy the embed code from the admin panel, or use:
 
 ```html
 <iframe
-  src="https://gantt.mycompany.com"
-  style="width:100%; height:80vh; border:0;"
+  src="https://gantt.mcmc.gov.my/embed/my-project"
+  style="width: 100%; height: 80vh; border: 0;"
+  title="Project Gantt Chart"
 ></iframe>
 ```
 
-Ensure the Gantt app's CORS allows the website origin, and the reverse proxy
-sets appropriate `X-Frame-Options` / CSP `frame-ancestors` headers.
+That's it. The chart updates live as tasks are edited.
 
 ---
 
-## Superset Integration
+## Pages
 
-Superset connects to the same `superset_analytics_db` database and can build
-charts on `gantt_tasks` (tasks by workstream, progress heatmap, overdue tasks,
-milestones timeline). Edits in the Gantt chart appear in Superset on dashboard
-refresh.
+| URL | Purpose | Editable? |
+|-----|---------|-----------|
+| `/` | Landing page | — |
+| `/admin` | Project management, CSV import | — |
+| `/project/:slug` | Full Gantt editor | Yes |
+| `/embed/:slug` | Embeddable read-only view | No |
 
 ---
 
-## License Note
+## API reference
 
-DHTMLX Gantt Standard edition is GPL v2 — free for internal company use.
-The Pro edition (paid) adds auto-scheduling, critical path, resource load,
-and undo/redo.
+### Projects
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/projects` | List all projects |
+| GET | `/api/projects/:slug` | Get project details |
+| POST | `/api/projects` | Create project |
+| PUT | `/api/projects/:slug` | Update project |
+| DELETE | `/api/projects/:slug` | Delete project + all data |
+
+### Tasks (scoped by project)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/projects/:slug/data` | Get all tasks + links (DHTMLX format) |
+| POST | `/api/projects/:slug/task` | Create task |
+| PUT | `/api/projects/:slug/task/:id` | Update task |
+| DELETE | `/api/projects/:slug/task/:id` | Delete task |
+| POST | `/api/projects/:slug/reorder` | Bulk reorder |
+
+### Links (scoped by project)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/:slug/link` | Create link |
+| PUT | `/api/projects/:slug/link/:id` | Update link |
+| DELETE | `/api/projects/:slug/link/:id` | Delete link |
+
+### Import
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/:slug/import` | Upload CSV (multipart form: file + mode) |
+
+### Health
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+
+---
+
+## CSV format
+
+The import endpoint accepts flexible column names. It will attempt to match:
+
+| What | Accepted column names |
+|------|----------------------|
+| Task name | `text`, `task_name`, `Task Name` |
+| Start date | `start_date`, `Start Date` |
+| End/due date | `end_date`, `due_date`, `Due Date` |
+| Duration | `duration`, `Days`, `Days (text)` |
+| Parent | `parent`, `parent_id`, `Parent ID` |
+| Type | `type`, `Type` (values: task, milestone, project) |
+| Original ID | `id`, `task_id`, `Task ID` (used for parent resolution) |
+| Progress | `progress` (0-100 or 0.0-1.0) |
+| Assignee | `assignee` |
+| Status | `status` |
+
+Date formats supported: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, ClickUp format (`Monday, August 3rd 2026`).
+
+---
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `CORS_ORIGINS` | No | Comma-separated allowed origins (empty = allow all) |
+| `DB_POOL_MIN` | No | Min pool size (default: 1) |
+| `DB_POOL_MAX` | No | Max pool size (default: 10) |
+| `LOG_LEVEL` | No | Logging level (default: INFO) |
+
+---
+
+## Database migrations
+
+| Migration | Description | Status |
+|-----------|-------------|--------|
+| `001_init_sort_order.sql` | Sequential sort_order for drag-reorder | Executed |
+| `002_multi_project.sql` | Multi-project support (projects table, project_id FK) | Pending |
+
+Run migrations with:
+```bash
+psql $DATABASE_URL -f db/migrations/002_multi_project.sql
+```
+
+---
+
+## Upgrading from v1 (single-project)
+
+The migration `002_multi_project.sql` automatically:
+1. Creates the `gantt_projects` table
+2. Adds `project_id` column to existing tasks/links
+3. Creates a default project (`persada-phase-1`) with all existing data
+
+Legacy endpoints (`/api/data`, `/api/task`, `/api/link`) still work — they read/write to project_id=1. Existing embeds continue to function without changes.
+
+---
+
+## Embedding tips
+
+- **Read-only:** Use `/embed/:slug` — hides toolbar, disables editing
+- **Editable embed:** Use `/project/:slug` in an iframe
+- **Custom height:** Adjust iframe `height` to fit your layout
+- **CORS:** Set `CORS_ORIGINS` to your portal's domain
+- **CSP:** Ensure your reverse proxy allows `frame-ancestors` for embedding portals
+
+---
+
+## Tech stack
+
+- **Backend:** FastAPI + asyncpg (Python 3.12)
+- **Frontend:** DHTMLX Gantt (GPL edition) — vanilla JS, no build step
+- **Database:** PostgreSQL
+- **Deployment:** Docker

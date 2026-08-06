@@ -3,144 +3,32 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Project Gantt</title>
-
-<!-- DHTMLX Gantt GPL edition from CDN. For production, `npm install dhtmlx-gantt` and bundle it. -->
-<script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
-<link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" />
-
+<title>Gantt Platform</title>
 <style>
-  html, body { height: 100%; margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-  #toolbar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; border-bottom: 1px solid #e0e0e0; background: #fafafa;
-  }
-  #toolbar button {
-    padding: 6px 12px; border: 1px solid #c9c9c9; border-radius: 6px;
-    background: #fff; cursor: pointer; font-size: 13px;
-  }
-  #toolbar button:hover { background: #f0f0f0; }
-  #toolbar button.active { background: #e0e0e0; font-weight: 600; }
-  #toolbar .spacer { flex: 1; }
-  #gantt_here { width: 100%; height: calc(100% - 46px); }
-  .today-cell { background: rgba(229, 57, 53, 0.08); border-left: 2px solid #e53935; }
+* { box-sizing: border-box; margin: 0; }
+body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+.hero { text-align: center; max-width: 500px; }
+.hero h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+.hero p { font-size: 15px; color: #64748b; margin-bottom: 24px; }
+.links { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.links a {
+  padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  text-decoration: none; transition: background 0.15s;
+}
+.links a.primary { background: #2563eb; color: #fff; }
+.links a.primary:hover { background: #1d4ed8; }
+.links a.secondary { background: #fff; color: #1e293b; border: 1px solid #e2e8f0; }
+.links a.secondary:hover { background: #f1f5f9; }
 </style>
 </head>
 <body>
-
-<div id="toolbar">
-  <button onclick="addTask()">+ New task</button>
-  <span class="spacer"></span>
-  <button id="btn-day" onclick="setScale('day')">Day</button>
-  <button id="btn-week" onclick="setScale('week')">Week</button>
-  <button id="btn-month" onclick="setScale('month')">Month</button>
+<div class="hero">
+  <h1>Gantt Platform</h1>
+  <p>Multi-project Gantt chart platform. Create projects, import CSV, and embed charts in any portal.</p>
+  <div class="links">
+    <a href="/admin" class="primary">Admin Panel</a>
+    <a href="/project/persada-phase-1" class="secondary">PERSADA Phase 1</a>
+  </div>
 </div>
-<div id="gantt_here"></div>
-
-<script>
-const API = "";  // same origin; set to e.g. "https://gantt.mycompany.com" if hosted separately
-
-// ---- configuration ----
-gantt.config.date_format = "%Y-%m-%d %H:%i";
-gantt.config.drag_progress = true;
-gantt.config.drag_links = true;
-gantt.config.order_branch = true;          // drag rows to reorder
-gantt.config.open_tree_initially = true;
-
-// grid columns
-gantt.config.columns = [
-  { name: "text",       label: "Task",     tree: true, width: 220, resize: true },
-  { name: "start_date", label: "Start",    align: "center", width: 90 },
-  { name: "duration",   label: "Days",     align: "center", width: 50 },
-  { name: "status",     label: "Status",   align: "center", width: 100 },
-  { name: "assignee",   label: "Assignee", align: "center", width: 100 },
-  { name: "add",        width: 40 }
-];
-
-// lightbox (task edit popup) — includes status and assignee
-gantt.config.lightbox.sections = [
-  { name: "description", height: 60, map_to: "text", type: "textarea", focus: true },
-  { name: "status",      height: 30, map_to: "status", type: "select", options: [
-      { key: "",            label: "— None —" },
-      { key: "to do",       label: "To Do" },
-      { key: "planning",    label: "Planning" },
-      { key: "in progress", label: "In Progress" },
-      { key: "complete",    label: "Complete" }
-  ]},
-  { name: "assignee",    height: 30, map_to: "assignee", type: "textarea" },
-  { name: "type",        type: "typeselect", map_to: "type" },
-  { name: "time",        type: "duration", map_to: "auto" }
-];
-gantt.locale.labels.section_status = "Status";
-gantt.locale.labels.section_assignee = "Assignee";
-
-// zoom levels
-function setScale(level) {
-  const scales = {
-    day:   [{ unit: "day",   step: 1, format: "%d %M" }],
-    week:  [{ unit: "week",  step: 1, format: "Week #%W" },
-            { unit: "day",   step: 1, format: "%d" }],
-    month: [{ unit: "month", step: 1, format: "%F %Y" },
-            { unit: "week",  step: 1, format: "%W" }]
-  };
-  gantt.config.scales = scales[level];
-  gantt.render();
-
-  // highlight active button
-  document.querySelectorAll("#toolbar button[id^='btn-']").forEach(function(b) {
-    b.classList.remove("active");
-  });
-  var btn = document.getElementById("btn-" + level);
-  if (btn) btn.classList.add("active");
-}
-
-// Default to Month view (project timeline spans 2026–2029)
-setScale("month");
-
-// ---- Draw a "today" vertical line (no plugin needed) ----
-gantt.templates.timeline_cell_class = function(task, date) {
-  var today = new Date();
-  if (date.getFullYear() === today.getFullYear() &&
-      date.getMonth() === today.getMonth() &&
-      date.getDate() === today.getDate()) {
-    return "today-cell";
-  }
-  return "";
-};
-
-// ---- init + load ----
-gantt.init("gantt_here");
-gantt.load(API + "/api/data", function() {
-  // Scroll timeline to today after data loads
-  gantt.showDate(new Date());
-});
-
-// ---- save every edit back to the API automatically ----
-var dp = gantt.createDataProcessor({
-  url: API + "/api",
-  mode: "REST"
-});
-
-// Persist row order after drag-reorder
-gantt.attachEvent("onRowDragEnd", function(id, target) {
-  var task = gantt.getTask(id);
-  var parent = task.parent || 0;
-  var children = gantt.getChildren(parent);
-  // Build the new order and send it directly
-  var order = children.map(function(childId, index) {
-    return { id: childId, sort_order: index };
-  });
-  fetch(API + "/api/reorder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(order)
-  });
-  return true;
-});
-
-function addTask() {
-  gantt.createTask({ text: "New task", duration: 3, status: "" });
-}
-</script>
 </body>
 </html>
