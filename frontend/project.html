@@ -55,6 +55,10 @@ gantt.config.order_branch = !IS_EMBED;
 gantt.config.open_tree_initially = true;
 gantt.config.readonly = IS_EMBED;
 
+// Project bars auto-stretch to cover child tasks
+gantt.config.auto_types = true;
+gantt.config.fit_tasks = true;
+
 // grid columns
 gantt.config.columns = [
   { name: "text",       label: "Task",     tree: true, width: 220, resize: true },
