@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gantt Platform — Admin</title>
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; }
+a { color: #2563eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+.header h1 { font-size: 18px; font-weight: 700; }
+.header .badge { background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px; }
+
+.container { max-width: 900px; margin: 32px auto; padding: 0 24px; }
+
+/* Project list */
+.project-grid { display: grid; gap: 12px; margin-bottom: 32px; }
+.project-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 16px 20px; display: flex; align-items: center; gap: 16px;
+  transition: box-shadow 0.15s;
+}
+.project-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+.project-info { flex: 1; }
+.project-title { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.project-slug { font-size: 12px; color: #64748b; font-family: monospace; }
+.project-desc { font-size: 13px; color: #64748b; margin-top: 4px; }
+.project-actions { display: flex; gap: 8px; }
+.btn-sm {
+  padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1;
+  background: #fff; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.btn-sm:hover { background: #f1f5f9; }
+.btn-sm.danger { color: #dc2626; border-color: #fca5a5; }
+.btn-sm.danger:hover { background: #fef2f2; }
+.btn-sm.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.btn-sm.primary:hover { background: #1d4ed8; }
+
+/* Create form */
+.form-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+.form-section h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field.full { grid-column: span 2; }
+.form-field label { font-size: 12px; font-weight: 600; color: #64748b; }
+.form-field input, .form-field textarea, .form-field select {
+  padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px;
+}
+.form-field textarea { resize: vertical; min-height: 60px; }
+.form-actions { display: flex; gap: 8px; }
+
+/* Import section */
+.import-area {
+  border: 2px dashed #cbd5e1; border-radius: 8px; padding: 24px;
+  text-align: center; cursor: pointer; transition: border-color 0.15s;
+}
+.import-area:hover { border-color: #2563eb; }
+.import-area p { font-size: 13px; color: #64748b; margin-top: 8px; }
+.import-area input[type="file"] { display: none; }
+
+/* Embed code */
+.embed-box { background: #f1f5f9; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; word-break: break-all; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; color: #fff; background: #16a34a; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; }
+.toast.error { background: #dc2626; }
+.toast.show { opacity: 1; }
+
+/* Empty state */
+.empty { text-align: center; padding: 48px; color: #94a3b8; }
+.empty p { font-size: 14px; margin-top: 8px; }
+
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .form-field.full { grid-column: span 1; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Gantt Platform</h1>
+  <span class="badge">Admin</span>
+</div>
+
+<div class="container">
+  <!-- Create new project -->
+  <div class="form-section">
+    <h2>Create new project</h2>
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="inp-title">Title</label>
+        <input id="inp-title" type="text" placeholder="e.g. PERSADA Phase 2" />
+      </div>
+      <div class="form-field">
+        <label for="inp-slug">Slug (URL-safe ID)</label>
+        <input id="inp-slug" type="text" placeholder="e.g. persada-phase-2" />
+      </div>
+      <div class="form-field full">
+        <label for="inp-desc">Description (optional)</label>
+        <textarea id="inp-desc" placeholder="Brief project description..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-sm primary" onclick="createProject()">Create project</button>
+    </div>
+  </div>
+
+  <!-- Import CSV into a project -->
+  <div class="form-section">
+    <h2>Import CSV into project</h2>
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="import-project">Project</label>
+        <select id="import-project"></select>
+      </div>
+      <div class="form-field">
+        <label for="import-mode">Mode</label>
+        <select id="import-mode">
+          <option value="replace">Replace all tasks</option>
+          <option value="append">Append to existing</option>
+        </select>
+      </div>
+    </div>
+    <div class="import-area" onclick="document.getElementById('csv-file').click()">
+      <strong>Click to upload CSV</strong>
+      <p>Supports ClickUp, MS Project, or any CSV with columns: Task Name, Start Date, Due Date, Duration</p>
+      <input type="file" id="csv-file" accept=".csv" onchange="handleFileSelect(this)" />
+    </div>
+    <p id="import-status" style="font-size:12px; color:#64748b; margin-top:8px;"></p>
+  </div>
+
+  <!-- Project list -->
+  <h2 style="font-size:16px; font-weight:700; margin-bottom:12px;">Projects</h2>
+  <div id="project-list" class="project-grid">
+    <div class="empty"><p>Loading...</p></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = "";
+
+function showToast(msg, isError) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isError ? " error" : "");
+  setTimeout(() => { t.className = "toast"; }, 3000);
+}
+
+// --- Load projects ---
+async function loadProjects() {
+  const res = await fetch(API + "/api/projects");
+  const projects = await res.json();
+  renderProjects(projects);
+  renderProjectSelect(projects);
+}
+
+function renderProjects(projects) {
+  const el = document.getElementById("project-list");
+  if (!projects.length) {
+    el.innerHTML = '<div class="empty"><p>No projects yet. Create one above.</p></div>';
+    return;
+  }
+  el.innerHTML = projects.map(p => `
+    <div class="project-card">
+      <div class="project-info">
+        <div class="project-title">${esc(p.title)}</div>
+        <div class="project-slug">${esc(p.slug)}</div>
+        ${p.description ? `<div class="project-desc">${esc(p.description)}</div>` : ""}
+      </div>
+      <div class="project-actions">
+        <button class="btn-sm" onclick="window.open('/project/${p.slug}', '_blank')">Open</button>
+        <button class="btn-sm" onclick="copyEmbed('${p.slug}')">Embed</button>
+        <button class="btn-sm danger" onclick="deleteProject('${p.slug}')">Delete</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderProjectSelect(projects) {
+  const sel = document.getElementById("import-project");
+  sel.innerHTML = projects.map(p => `<option value="${p.slug}">${p.title} (${p.slug})</option>`).join("");
+}
+
+// --- Create project ---
+async function createProject() {
+  const title = document.getElementById("inp-title").value.trim();
+  const slug = document.getElementById("inp-slug").value.trim().toLowerCase();
+  const description = document.getElementById("inp-desc").value.trim();
+
+  if (!title || !slug) { showToast("Title and slug are required.", true); return; }
+
+  const res = await fetch(API + "/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, slug, description }),
+  });
+
+  if (res.ok) {
+    showToast("Project created!");
+    document.getElementById("inp-title").value = "";
+    document.getElementById("inp-slug").value = "";
+    document.getElementById("inp-desc").value = "";
+    loadProjects();
+  } else {
+    const err = await res.json();
+    showToast(err.detail || "Failed to create project.", true);
+  }
+}
+
+// --- Delete project ---
+async function deleteProject(slug) {
+  if (!confirm(`Delete project "${slug}" and ALL its tasks? This cannot be undone.`)) return;
+  const res = await fetch(API + `/api/projects/${slug}`, { method: "DELETE" });
+  if (res.ok) { showToast("Deleted."); loadProjects(); }
+  else { showToast("Failed to delete.", true); }
+}
+
+// --- Copy embed code ---
+function copyEmbed(slug) {
+  const origin = window.location.origin;
+  const code = `<iframe src="${origin}/embed/${slug}" style="width:100%; height:80vh; border:0;" title="Gantt Chart"></iframe>`;
+  navigator.clipboard.writeText(code).then(() => showToast("Embed code copied!"));
+}
+
+// --- CSV Import ---
+async function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const slug = document.getElementById("import-project").value;
+  const mode = document.getElementById("import-mode").value;
+  if (!slug) { showToast("Select a project first.", true); return; }
+
+  document.getElementById("import-status").textContent = "Importing...";
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("mode", mode);
+
+  const res = await fetch(API + `/api/projects/${slug}/import`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    document.getElementById("import-status").textContent = `Imported ${data.tasks_imported} tasks.`;
+    showToast(`${data.tasks_imported} tasks imported!`);
+  } else {
+    const err = await res.json();
+    document.getElementById("import-status").textContent = "";
+    showToast(err.detail || "Import failed.", true);
+  }
+  input.value = "";
+}
+
+// --- Auto-generate slug from title ---
+document.getElementById("inp-title").addEventListener("input", function() {
+  const slug = this.value.trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  document.getElementById("inp-slug").value = slug;
+});
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+// Init
+loadProjects();
+</script>
+</body>
+</html>

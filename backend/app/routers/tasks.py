@@ -1,12 +1,12 @@
-"""Task CRUD endpoints — matches DHTMLX dataProcessor REST format."""
+"""Task CRUD endpoints — scoped by project slug. Matches DHTMLX dataProcessor REST format."""
 
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.database import get_pool
 
-router = APIRouter(prefix="/api", tags=["tasks"])
+router = APIRouter(tags=["tasks"])
 
 DATE_FMT = "%Y-%m-%d %H:%M"
 
@@ -27,6 +27,18 @@ def _row_to_dict(r) -> dict:
     }
 
 
+async def _get_project_id(slug: str) -> int:
+    """Resolve project slug to ID."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM gantt_projects WHERE slug = $1", slug
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found.")
+    return row["id"]
+
+
 async def _parse_form(request: Request) -> dict:
     form = await request.form()
     sort_order_raw = form.get("sort_order")
@@ -43,15 +55,22 @@ async def _parse_form(request: Request) -> dict:
     }
 
 
-@router.get("/data")
-async def get_data():
-    """Load all tasks and links (initial chart payload)."""
+# --- Project-scoped endpoints ---
+
+@router.get("/api/projects/{slug}/data")
+async def get_project_data(slug: str):
+    """Load all tasks and links for a project (DHTMLX chart payload)."""
+    project_id = await _get_project_id(slug)
     pool = get_pool()
     async with pool.acquire() as conn:
         tasks = await conn.fetch(
-            "SELECT * FROM gantt_tasks ORDER BY sort_order, id"
+            "SELECT * FROM gantt_tasks WHERE project_id = $1 ORDER BY sort_order, id",
+            project_id,
         )
-        links = await conn.fetch("SELECT * FROM gantt_links ORDER BY id")
+        links = await conn.fetch(
+            "SELECT * FROM gantt_links WHERE project_id = $1 ORDER BY id",
+            project_id,
+        )
     return {
         "data": [_row_to_dict(t) for t in tasks],
         "links": [
@@ -62,23 +81,25 @@ async def get_data():
     }
 
 
-@router.post("/task")
-async def create_task(request: Request):
+@router.post("/api/projects/{slug}/task")
+async def create_task(slug: str, request: Request):
+    project_id = await _get_project_id(slug)
     t = await _parse_form(request)
     pool = get_pool()
     async with pool.acquire() as conn:
         new_id = await conn.fetchval(
             """INSERT INTO gantt_tasks
-               (text, start_date, duration, progress, parent, type, assignee, status)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id""",
-            t["text"], t["start_date"], t["duration"],
+               (project_id, text, start_date, duration, progress, parent, type, assignee, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id""",
+            project_id, t["text"], t["start_date"], t["duration"],
             t["progress"], t["parent"], t["type"], t["assignee"], t["status"],
         )
     return {"action": "inserted", "tid": new_id}
 
 
-@router.put("/task/{task_id}")
-async def update_task(task_id: int, request: Request):
+@router.put("/api/projects/{slug}/task/{task_id}")
+async def update_task(slug: str, task_id: int, request: Request):
+    project_id = await _get_project_id(slug)
     t = await _parse_form(request)
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -86,32 +107,113 @@ async def update_task(task_id: int, request: Request):
             """UPDATE gantt_tasks SET
                text=$1, start_date=$2, duration=$3, progress=$4,
                parent=$5, type=$6, assignee=$7, status=$8, sort_order=$9, updated_at=NOW()
-               WHERE id=$10""",
+               WHERE id=$10 AND project_id=$11""",
+            t["text"], t["start_date"], t["duration"], t["progress"],
+            t["parent"], t["type"], t["assignee"], t["status"], t["sort_order"],
+            task_id, project_id,
+        )
+    return {"action": "updated"}
+
+
+@router.delete("/api/projects/{slug}/task/{task_id}")
+async def delete_task(slug: str, task_id: int):
+    project_id = await _get_project_id(slug)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM gantt_tasks WHERE (id=$1 OR parent=$1) AND project_id=$2",
+            task_id, project_id,
+        )
+    return {"action": "deleted"}
+
+
+@router.post("/api/projects/{slug}/reorder")
+async def reorder_tasks(slug: str, request: Request):
+    """Bulk update sort_order for tasks within a project."""
+    project_id = await _get_project_id(slug)
+    body = await request.json()
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for item in body:
+            await conn.execute(
+                "UPDATE gantt_tasks SET sort_order=$1 WHERE id=$2 AND project_id=$3",
+                item["sort_order"], item["id"], project_id,
+            )
+    return {"action": "reordered", "count": len(body)}
+
+
+# --- Legacy endpoints (backwards-compatible, uses default project) ---
+
+@router.get("/api/data")
+async def get_data_legacy():
+    """Legacy: load data from project_id=1 (backwards compat)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        tasks = await conn.fetch(
+            "SELECT * FROM gantt_tasks WHERE project_id = 1 ORDER BY sort_order, id"
+        )
+        links = await conn.fetch(
+            "SELECT * FROM gantt_links WHERE project_id = 1 ORDER BY id"
+        )
+    return {
+        "data": [_row_to_dict(t) for t in tasks],
+        "links": [
+            {"id": l["id"], "source": l["source"],
+             "target": l["target"], "type": l["type"]}
+            for l in links
+        ],
+    }
+
+
+@router.post("/api/task")
+async def create_task_legacy(request: Request):
+    t = await _parse_form(request)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        new_id = await conn.fetchval(
+            """INSERT INTO gantt_tasks
+               (project_id, text, start_date, duration, progress, parent, type, assignee, status)
+               VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8) RETURNING id""",
+            t["text"], t["start_date"], t["duration"],
+            t["progress"], t["parent"], t["type"], t["assignee"], t["status"],
+        )
+    return {"action": "inserted", "tid": new_id}
+
+
+@router.put("/api/task/{task_id}")
+async def update_task_legacy(task_id: int, request: Request):
+    t = await _parse_form(request)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE gantt_tasks SET
+               text=$1, start_date=$2, duration=$3, progress=$4,
+               parent=$5, type=$6, assignee=$7, status=$8, sort_order=$9, updated_at=NOW()
+               WHERE id=$10 AND project_id=1""",
             t["text"], t["start_date"], t["duration"], t["progress"],
             t["parent"], t["type"], t["assignee"], t["status"], t["sort_order"], task_id,
         )
     return {"action": "updated"}
 
 
-@router.delete("/task/{task_id}")
-async def delete_task(task_id: int):
+@router.delete("/api/task/{task_id}")
+async def delete_task_legacy(task_id: int):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "DELETE FROM gantt_tasks WHERE id=$1 OR parent=$1", task_id
+            "DELETE FROM gantt_tasks WHERE (id=$1 OR parent=$1) AND project_id=1", task_id
         )
     return {"action": "deleted"}
 
 
-@router.post("/reorder")
-async def reorder_tasks(request: Request):
-    """Bulk update sort_order for a list of tasks."""
+@router.post("/api/reorder")
+async def reorder_tasks_legacy(request: Request):
     body = await request.json()
     pool = get_pool()
     async with pool.acquire() as conn:
         for item in body:
             await conn.execute(
-                "UPDATE gantt_tasks SET sort_order=$1 WHERE id=$2",
+                "UPDATE gantt_tasks SET sort_order=$1 WHERE id=$2 AND project_id=1",
                 item["sort_order"], item["id"],
             )
     return {"action": "reordered", "count": len(body)}
