@@ -11,10 +11,10 @@ Multi-project Gantt chart platform. Create projects, import CSV, and embed inter
 │  Any Portal / Website                                                    │
 │                                                                          │
 │  Option A (recommended): SDK — renders in your page's DOM                │
-│  <mcmc-gantt project="my-project" api="https://gantt.mcmc.gov.my" />     │
+│  <mcmc-gantt project="my-project" api="http://<GANTT_HOST>:8200" />     │
 │                                                                          │
 │  Option B: iframe — simple but isolated                                  │
-│  <iframe src="https://gantt.mcmc.gov.my/embed/my-project" />             │
+│  <iframe src="http://<GANTT_HOST>:8200/embed/my-project" />             │
 │                                                                          │
 └─────────────────────────────────────┬───────────────────────────────────┘
                                       │ REST API
@@ -69,7 +69,7 @@ Go to `/admin` → fill in title and slug → click "Create project"
 
 Or via API:
 ```bash
-curl -X POST https://gantt.mcmc.gov.my/api/projects \
+curl -X POST http://<GANTT_HOST>:8200/api/projects \
   -H "Content-Type: application/json" \
   -d '{"title": "My Project", "slug": "my-project"}'
 ```
@@ -96,8 +96,8 @@ curl -X POST https://gantt.mcmc.gov.my/api/projects \
 **Recommended: SDK (Web Component — no iframe, native feel)**
 
 ```html
-<mcmc-gantt project="my-project" api="https://gantt.mcmc.gov.my" editable height="80vh"></mcmc-gantt>
-<script src="https://gantt.mcmc.gov.my/sdk/gantt-element.js" type="module"></script>
+<mcmc-gantt project="my-project" api="http://<GANTT_HOST>:8200" editable height="80vh"></mcmc-gantt>
+<script src="http://<GANTT_HOST>:8200/sdk/gantt-element.js" type="module"></script>
 ```
 
 **Vue 3 portals:**
@@ -108,14 +108,14 @@ import { GanttChart } from '@mcmc/gantt-chart/vue'
 </script>
 
 <template>
-  <GanttChart project="my-project" api-base="https://gantt.mcmc.gov.my" :editable="true" height="80vh" />
+  <GanttChart project="my-project" api-base="http://<GANTT_HOST>:8200" :editable="true" height="80vh" />
 </template>
 ```
 
 **Fallback: iframe (simple, but isolated UX)**
 
 ```html
-<iframe src="https://gantt.mcmc.gov.my/embed/my-project" style="width:100%; height:80vh; border:0;"></iframe>
+<iframe src="http://<GANTT_HOST>:8200/embed/my-project" style="width:100%; height:80vh; border:0;"></iframe>
 ```
 
 The chart updates live as tasks are edited.
@@ -252,7 +252,7 @@ The `sdk/` directory contains an embeddable Gantt component that renders directl
 ```html
 <mcmc-gantt
   project="my-project"
-  api="https://gantt.mcmc.gov.my"
+  api="http://<GANTT_HOST>:8200"
   editable
   scale="month"
   height="80vh"
