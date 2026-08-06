@@ -10,10 +10,14 @@ Multi-project Gantt chart platform. Create projects, import CSV, and embed inter
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Any Portal / Website                                                    │
 │                                                                          │
+│  Option A (recommended): SDK — renders in your page's DOM                │
+│  <mcmc-gantt project="my-project" api="https://gantt.mcmc.gov.my" />     │
+│                                                                          │
+│  Option B: iframe — simple but isolated                                  │
 │  <iframe src="https://gantt.mcmc.gov.my/embed/my-project" />             │
 │                                                                          │
 └─────────────────────────────────────┬───────────────────────────────────┘
-                                      │
+                                      │ REST API
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Gantt Platform (single deployment, serves all projects)                 │
@@ -21,6 +25,7 @@ Multi-project Gantt chart platform. Create projects, import CSV, and embed inter
 │  /admin                → manage projects, import CSV                     │
 │  /project/:slug        → full interactive editor                         │
 │  /embed/:slug          → read-only embeddable view (no toolbar)          │
+│  /sdk/*                → hosted SDK files for <script> usage             │
 │  /api/projects         → REST API                                        │
 │                                                                          │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -88,17 +93,32 @@ curl -X POST https://gantt.mcmc.gov.my/api/projects \
 
 ### Step 3: Embed in your portal
 
-Copy the embed code from the admin panel, or use:
+**Recommended: SDK (Web Component — no iframe, native feel)**
 
 ```html
-<iframe
-  src="https://gantt.mcmc.gov.my/embed/my-project"
-  style="width: 100%; height: 80vh; border: 0;"
-  title="Project Gantt Chart"
-></iframe>
+<mcmc-gantt project="my-project" api="https://gantt.mcmc.gov.my" editable height="80vh"></mcmc-gantt>
+<script src="https://gantt.mcmc.gov.my/sdk/gantt-element.js" type="module"></script>
 ```
 
-That's it. The chart updates live as tasks are edited.
+**Vue 3 portals:**
+
+```vue
+<script setup>
+import { GanttChart } from '@mcmc/gantt-chart/vue'
+</script>
+
+<template>
+  <GanttChart project="my-project" api-base="https://gantt.mcmc.gov.my" :editable="true" height="80vh" />
+</template>
+```
+
+**Fallback: iframe (simple, but isolated UX)**
+
+```html
+<iframe src="https://gantt.mcmc.gov.my/embed/my-project" style="width:100%; height:80vh; border:0;"></iframe>
+```
+
+The chart updates live as tasks are edited.
 
 ---
 
@@ -215,13 +235,72 @@ Legacy endpoints (`/api/data`, `/api/task`, `/api/link`) still work — they rea
 
 ---
 
+## SDK (Embeddable Component)
+
+The `sdk/` directory contains an embeddable Gantt component that renders directly in the host page's DOM — no iframe needed.
+
+### Three ways to embed
+
+| Method | Best for | Install |
+|--------|----------|---------|
+| **Web Component** `<mcmc-gantt>` | Any portal (HTML, React, Angular) | `<script>` tag |
+| **Vue 3 component** `<GanttChart>` | Vue apps | `npm install @mcmc/gantt-chart` |
+| **Imperative API** `mountGantt()` | Complex integrations | npm or script |
+
+### Web Component attributes
+
+```html
+<mcmc-gantt
+  project="my-project"
+  api="https://gantt.mcmc.gov.my"
+  editable
+  scale="month"
+  height="80vh"
+></mcmc-gantt>
+```
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `project` | Yes | Project slug |
+| `api` | No | API base URL (default: same origin) |
+| `editable` | No | Presence enables editing |
+| `scale` | No | day, week, month (default: month) |
+| `height` | No | Container height (default: 600px) |
+
+### Events
+
+```js
+document.querySelector('mcmc-gantt').addEventListener('task-click', (e) => {
+  console.log(e.detail)  // task object
+})
+```
+
+| Event | Detail |
+|-------|--------|
+| `task-click` | Task object when clicked |
+| `task-change` | Task object after update |
+
+### Building the SDK
+
+```bash
+cd sdk
+npm install
+npm run build
+# Output: dist/gantt-element.js, dist/gantt-chart.es.js
+```
+
+Host `dist/` on the Gantt platform at `/sdk/` or publish to your npm registry.
+
+See [`sdk/README.md`](sdk/README.md) for full documentation.
+
+---
+
 ## Embedding tips
 
-- **Read-only:** Use `/embed/:slug` — hides toolbar, disables editing
-- **Editable embed:** Use `/project/:slug` in an iframe
-- **Custom height:** Adjust iframe `height` to fit your layout
+- **SDK (recommended):** Renders in the host page — shared styles, native scroll, events
+- **iframe fallback:** Use `/embed/:slug` — simpler but isolated UX
 - **CORS:** Set `CORS_ORIGINS` to your portal's domain
-- **CSP:** Ensure your reverse proxy allows `frame-ancestors` for embedding portals
+- **CSP:** For iframe, set `frame-ancestors`; for SDK, just allow API requests
 
 ---
 
@@ -229,5 +308,6 @@ Legacy endpoints (`/api/data`, `/api/task`, `/api/link`) still work — they rea
 
 - **Backend:** FastAPI + asyncpg (Python 3.12)
 - **Frontend:** DHTMLX Gantt (GPL edition) — vanilla JS, no build step
+- **SDK:** Web Component + Vue 3 wrapper (Vite build)
 - **Database:** PostgreSQL
 - **Deployment:** Docker
