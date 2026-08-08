@@ -45,7 +45,7 @@
   color: var(--color-muted);
   transition: all 0.15s;
 }
-.controls button:hover { background: #e2e8f0; color: var(--color-text); }
+.controls button:hover:not(.btn) { background: #e2e8f0; color: var(--color-text); }
 .controls button.active { background: var(--color-surface); color: var(--color-text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 .controls .sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 6px; }
 .controls .spacer { flex: 1; }
@@ -95,238 +95,35 @@
 .readonly-mode .gantt_grid_head_cell:last-child,
 .readonly-mode .gantt_cell:last-child { display: none; }
 
-/* --- DHTMLX Lightbox (task edit popup) overrides --- */
-.gantt_cal_light {
-  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
-  border-radius: 12px !important;
-  border: 1px solid var(--color-border) !important;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
-  overflow: hidden;
-  width: 450px !important;
+/* --- Modal overlay --- */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
 }
-
-.gantt_cal_ltitle {
-  background: var(--color-surface) !important;
-  border-bottom: 1px solid var(--color-border) !important;
-  padding: 16px 20px !important;
-  height: auto !important;
-  line-height: normal !important;
+.modal-overlay.show { display: flex; }
+.modal-box {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 24px 28px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
 }
-
-.gantt_cal_ltitle span {
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  color: var(--color-text) !important;
+.modal-box h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
 }
-
-.gantt_cal_ltitle .gantt_cancel_btn_set,
-.gantt_cal_ltitle .gantt_close_btn {
-  color: var(--color-muted) !important;
-}
-
-.gantt_cal_larea {
-  background: var(--color-surface) !important;
-  padding: 16px 20px !important;
-  overflow-y: auto !important;
-}
-
-.gantt_cal_lsection {
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  color: var(--color-muted) !important;
-  padding: 8px 0 4px !important;
-  border: none !important;
-}
-
-.gantt_wrap_section {
-  overflow: visible !important;
-}
-
-.gantt_cal_ltext {
-  overflow: hidden !important;
-}
-
-.gantt_cal_ltext textarea {
-  font-family: inherit !important;
-  font-size: 13px !important;
-  border: 1px solid var(--color-border) !important;
-  border-radius: 6px !important;
-  padding: 10px 12px !important;
-  background: var(--color-surface) !important;
-  transition: border-color 0.15s !important;
-  resize: none !important;
-  overflow: hidden !important;
-}
-
-/* Description textarea — allow multi-line */
-.gantt_wrap_section[data-name="description"] .gantt_cal_ltext textarea {
-  height: 100% !important;
-  min-height: 36px !important;
-  overflow-y: auto !important;
-  resize: vertical !important;
-}
-
-/* Assignee textarea — single line appearance, vertically centered */
-.gantt_wrap_section[data-name="assignee"] .gantt_cal_ltext {
-  height: 36px !important;
-  display: flex !important;
-  align-items: stretch !important;
-  overflow: visible !important;
-}
-
-.gantt_wrap_section[data-name="assignee"] .gantt_cal_ltext textarea {
-  height: 36px !important;
-  line-height: 14px !important;
-  padding: 11px 12px !important;
-  vertical-align: middle !important;
-  display: block !important;
-}
-
-.gantt_cal_ltext textarea:focus {
-  outline: none !important;
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08) !important;
-}
-
-.gantt_section_time {
-  background: transparent !important;
-}
-
-.gantt_section_time select,
-.gantt_cal_lsection select,
-.gantt_cal_larea select {
-  font-family: inherit !important;
-  font-size: 13px !important;
-  border: 1px solid var(--color-border) !important;
-  border-radius: 6px !important;
-  padding: 8px 10px !important;
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-  appearance: auto !important;
-  box-sizing: border-box !important;
-}
-
-.gantt_section_time select {
-  width: auto !important;
-}
-
-.gantt_cal_larea .gantt_section_select {
-  border: none !important;
-  overflow: visible !important;
-  height: auto !important;
-  min-height: 38px !important;
-  padding: 2px 0 4px !important;
-  margin-bottom: 2px !important;
-}
-
-.gantt_cal_larea .gantt_section_select select,
-.gantt_cal_larea .gantt_wrap_section select {
-  border: 1px solid var(--color-border) !important;
-  border-bottom: 1px solid var(--color-border) !important;
-  border-radius: 6px !important;
-  padding: 8px 10px !important;
-  font-family: inherit !important;
-  font-size: 13px !important;
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  appearance: auto !important;
-  display: block !important;
-}
-
-.gantt_section_time select:focus,
-.gantt_cal_lsection select:focus {
-  outline: none !important;
-  border-color: var(--color-primary) !important;
-}
-
-.gantt_section_time input {
-  font-family: inherit !important;
-  font-size: 13px !important;
-  border: 1px solid var(--color-border) !important;
-  border-radius: 6px !important;
-  padding: 8px 10px !important;
-  background: var(--color-surface) !important;
-}
-
-.gantt_cal_larea .gantt_section_time {
-  padding: 4px 0 !important;
-  display: flex !important;
-  flex-wrap: wrap !important;
-  align-items: center !important;
-  gap: 6px !important;
-}
-
-.gantt_cal_larea .gantt_section_time select {
-  width: auto !important;
-  min-width: 50px !important;
-  padding: 6px 8px !important;
-}
-
-.gantt_cal_larea .gantt_section_time .time-label {
-  flex-basis: 36px !important;
-  flex-shrink: 0 !important;
-}
-
-/* Lightbox buttons bar */
-.gantt_cal_lfoot {
-  background: var(--color-surface) !important;
-  border-top: 1px solid var(--color-border) !important;
-  padding: 12px 20px !important;
-  display: flex !important;
-  justify-content: flex-end !important;
-  gap: 8px !important;
-}
-
-.gantt_cal_lfoot .gantt_btn_set {
-  border-radius: 6px !important;
-  padding: 8px 16px !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  font-family: inherit !important;
-  border: 1px solid var(--color-border) !important;
-  cursor: pointer !important;
-  transition: all 0.15s !important;
-  margin: 0 !important;
-  height: auto !important;
-  line-height: normal !important;
-}
-
-.gantt_cal_lfoot .gantt_save_btn_set {
-  background: var(--color-primary) !important;
-  color: #fff !important;
-  border-color: var(--color-primary) !important;
-}
-
-.gantt_cal_lfoot .gantt_save_btn_set:hover {
-  background: var(--color-primary-hover) !important;
-}
-
-.gantt_cal_lfoot .gantt_cancel_btn_set {
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-}
-
-.gantt_cal_lfoot .gantt_cancel_btn_set:hover {
-  background: var(--color-bg) !important;
-}
-
-.gantt_cal_lfoot .gantt_delete_btn_set {
-  background: transparent !important;
-  color: var(--color-danger) !important;
-  border-color: transparent !important;
-  margin-right: auto !important;
-}
-
-.gantt_cal_lfoot .gantt_delete_btn_set:hover {
-  background: #fef2f2 !important;
-}
-
-/* Lightbox overlay */
-.gantt_cal_cover {
-  background: rgba(0, 0, 0, 0.3) !important;
-  opacity: 1 !important;
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
 /* --- DHTMLX Confirm/Alert popup overrides --- */
@@ -338,6 +135,7 @@
   overflow: hidden !important;
   padding: 24px 28px !important;
   background: var(--color-surface) !important;
+  min-width: 400px !important;
 }
 
 .gantt_popup_title {
@@ -350,6 +148,7 @@
   padding: 0 0 20px !important;
   margin: 0 !important;
   border: none !important;
+  text-align: center !important;
 }
 
 .gantt_popup_controls {
@@ -476,7 +275,7 @@ div.gantt-info {
         <button onclick="collapseAll()">Collapse</button>
         <button onclick="scrollToToday()">Today</button>
         <span class="spacer"></span>
-        <button onclick="addTask()" id="btn-add" style="display:none;" class="btn primary">+ New Task</button>
+        <button onclick="addTask()" id="btn-add" style="display:none;padding:8px 16px;font-size:13px;font-weight:700;border-radius:8px;" class="btn primary">+ New Task</button>
       </div>
 
       <!-- Gantt chart -->
@@ -484,6 +283,60 @@ div.gantt-info {
     </div>
   </div>
 </div>
+
+<!-- Task Modal -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal-box" style="max-width:500px;">
+    <h3 id="task-modal-title">New Task</h3>
+    <div class="form-grid">
+      <div class="form-field full">
+        <label for="task-text">Task Name</label>
+        <input id="task-text" type="text" placeholder="e.g. Site survey" />
+      </div>
+      <div class="form-field">
+        <label for="task-start">Start Date</label>
+        <input id="task-start" type="date" />
+      </div>
+      <div class="form-field">
+        <label for="task-end">End Date</label>
+        <input id="task-end" type="date" />
+      </div>
+      <div class="form-field">
+        <label for="task-status">Status</label>
+        <select id="task-status">
+          <option value="">— None —</option>
+          <option value="to do">To Do</option>
+          <option value="planning">Planning</option>
+          <option value="in progress">In Progress</option>
+          <option value="complete">Complete</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="task-type">Type</label>
+        <select id="task-type">
+          <option value="task">Task</option>
+          <option value="project">Project (group)</option>
+          <option value="milestone">Milestone</option>
+        </select>
+      </div>
+      <div class="form-field full">
+        <label for="task-assignee">Assignee</label>
+        <input id="task-assignee" type="text" placeholder="Person responsible" />
+      </div>
+    </div>
+    <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:16px;">
+      <div>
+        <button class="btn danger" id="task-delete-btn" onclick="deleteTaskFromModal()" style="display:none;">Delete</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="hideTaskModal()">Cancel</button>
+        <button class="btn primary" onclick="saveTask()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
 
 <script>
 // --- Resolve project ---
@@ -563,96 +416,10 @@ if (!IS_EMBED) {
   gantt.config.columns.push({ name: "add", width: 36 });
 }
 
-// Lightbox
-gantt.config.lightbox.sections = [
-  { name: "description", height: 50, map_to: "text", type: "textarea", focus: true },
-  { name: "status", height: 30, map_to: "status", type: "select", options: [
-      { key: "", label: "— None —" },
-      { key: "to do", label: "To Do" },
-      { key: "planning", label: "Planning" },
-      { key: "in progress", label: "In Progress" },
-      { key: "complete", label: "Complete" }
-  ]},
-  { name: "assignee", height: 30, map_to: "assignee", type: "textarea", single_line: true },
-  { name: "type", type: "typeselect", map_to: "type" },
-  { name: "time", type: "time", map_to: "auto" }
-];
-gantt.locale.labels.section_status = "Status";
-gantt.locale.labels.section_assignee = "Assignee";
-gantt.locale.labels.section_time = "Time period";
-gantt.templates.time_picker = gantt.date.date_to_str("%d/%m/%Y");
-
-// Add "Start" and "End" labels to time section + fix styling
-gantt.attachEvent("onLightbox", function(id) {
-  setTimeout(function() {
-    // Add Start/End labels
-    var timeSection = document.querySelector('.gantt_cal_light .gantt_section_time');
-    if (timeSection && !timeSection.querySelector('.time-label')) {
-      var selects = timeSection.querySelectorAll('select');
-      if (selects.length >= 6) {
-        var startLabel = document.createElement('span');
-        startLabel.className = 'time-label';
-        startLabel.textContent = 'Start:';
-        startLabel.style.cssText = 'font-size:12px;font-weight:600;color:#64748b;display:inline-block;width:36px;';
-        selects[0].parentNode.insertBefore(startLabel, selects[0]);
-
-        var endLabel = document.createElement('span');
-        endLabel.className = 'time-label';
-        endLabel.textContent = 'End:';
-        endLabel.style.cssText = 'font-size:12px;font-weight:600;color:#64748b;display:inline-block;width:36px;';
-        // Add line break before End
-        var br = document.createElement('div');
-        br.style.cssText = 'flex-basis:100%;height:0;';
-        selects[3].parentNode.insertBefore(br, selects[3]);
-        selects[3].parentNode.insertBefore(endLabel, selects[3]);
-      }
-    }
-
-    // Fix ALL wrap sections — ensure overflow visible so borders aren't clipped
-    var wrapSections = document.querySelectorAll('.gantt_cal_light .gantt_wrap_section');
-    wrapSections.forEach(function(ws) {
-      ws.style.overflow = 'visible';
-    });
-
-    // Fix section_select containers (Status, Type dropdowns)
-    var sectionSelects = document.querySelectorAll('.gantt_cal_light .gantt_section_select');
-    sectionSelects.forEach(function(el) {
-      el.style.overflow = 'visible';
-      el.style.height = 'auto';
-      el.style.minHeight = '40px';
-      el.style.paddingBottom = '6px';
-    });
-
-    // Fix gantt_cal_ltext containers (Description, Assignee textareas)
-    var ltexts = document.querySelectorAll('.gantt_cal_light .gantt_cal_ltext');
-    ltexts.forEach(function(el) {
-      el.style.overflow = 'visible';
-      el.style.height = 'auto';
-      el.style.minHeight = '40px';
-      el.style.paddingBottom = '6px';
-    });
-
-    // Fix Assignee textarea specifically — vertically center
-    var sections = document.querySelectorAll('.gantt_cal_light .gantt_cal_lsection');
-    sections.forEach(function(sec) {
-      var label = sec.textContent.trim().toLowerCase();
-      if (label === 'assignee') {
-        var ltext = sec.nextElementSibling;
-        if (ltext) {
-          var ta = ltext.querySelector('textarea');
-          if (ta) {
-            ta.style.height = '36px';
-            ta.style.overflow = 'hidden';
-            ta.style.resize = 'none';
-            ta.style.paddingTop = '9px';
-            ta.style.paddingBottom = '9px';
-            ta.style.lineHeight = '18px';
-          }
-        }
-      }
-    });
-  }, 60);
-  return true;
+// Lightbox — use custom modal instead of DHTMLX lightbox
+gantt.attachEvent("onBeforeLightbox", function(id) {
+  showTaskModal(id);
+  return false; // prevent default lightbox
 });
 
 // --- Task styling (CSS class per type) ---
@@ -692,7 +459,126 @@ function setScale(level) {
 function expandAll() { gantt.eachTask(function(t) { t.$open = true; }); gantt.render(); }
 function collapseAll() { gantt.eachTask(function(t) { t.$open = false; }); gantt.render(); }
 function scrollToToday() { gantt.showDate(new Date()); }
-function addTask() { if (!IS_EMBED) gantt.createTask({ text: "New task", duration: 3 }); }
+function addTask() {
+  if (!IS_EMBED) showTaskModal();
+}
+
+// --- Custom Task Modal ---
+var editingTaskId = null;
+
+function showTaskModal(taskId) {
+  editingTaskId = taskId || null;
+  var modal = document.getElementById('task-modal');
+  var title = document.getElementById('task-modal-title');
+  var deleteBtn = document.getElementById('task-delete-btn');
+
+  if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
+    // Editing existing task
+    var task = gantt.getTask(editingTaskId);
+    title.textContent = 'Edit Task';
+    document.getElementById('task-text').value = task.text || '';
+    document.getElementById('task-assignee').value = task.assignee || '';
+    document.getElementById('task-status').value = task.status || '';
+    document.getElementById('task-type').value = task.type || 'task';
+
+    var startDate = task.start_date;
+    if (startDate) {
+      var sd = startDate instanceof Date ? startDate : new Date(startDate);
+      document.getElementById('task-start').value = sd.toISOString().split('T')[0];
+    }
+    var endDate = task.end_date || gantt.calculateEndDate(task.start_date, task.duration);
+    if (endDate) {
+      var ed = endDate instanceof Date ? endDate : new Date(endDate);
+      document.getElementById('task-end').value = ed.toISOString().split('T')[0];
+    }
+    deleteBtn.style.display = '';
+  } else {
+    // Creating new task
+    title.textContent = 'New Task';
+    document.getElementById('task-text').value = '';
+    document.getElementById('task-assignee').value = '';
+    document.getElementById('task-status').value = '';
+    document.getElementById('task-type').value = 'task';
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('task-start').value = today;
+    var nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    document.getElementById('task-end').value = nextWeek.toISOString().split('T')[0];
+    deleteBtn.style.display = 'none';
+    editingTaskId = null;
+  }
+
+  modal.classList.add('show');
+}
+
+function hideTaskModal() {
+  document.getElementById('task-modal').classList.remove('show');
+  editingTaskId = null;
+}
+
+function saveTask() {
+  var text = document.getElementById('task-text').value.trim();
+  var startStr = document.getElementById('task-start').value;
+  var endStr = document.getElementById('task-end').value;
+  var status = document.getElementById('task-status').value;
+  var type = document.getElementById('task-type').value;
+  var assignee = document.getElementById('task-assignee').value.trim();
+
+  if (!text) { showToast('Task name is required.', true); return; }
+  if (!startStr || !endStr) { showToast('Start and End dates are required.', true); return; }
+
+  var startDate = new Date(startStr + ' 00:00');
+  var endDate = new Date(endStr + ' 00:00');
+  var duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+  if (duration < 1) { showToast('End date must be after start date.', true); return; }
+
+  if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
+    // Update existing task
+    var task = gantt.getTask(editingTaskId);
+    task.text = text;
+    task.start_date = startDate;
+    task.end_date = endDate;
+    task.duration = duration;
+    task.status = status;
+    task.type = type;
+    task.assignee = assignee;
+    gantt.updateTask(editingTaskId);
+  } else {
+    // Create new task
+    gantt.addTask({
+      text: text,
+      start_date: startDate,
+      end_date: endDate,
+      duration: duration,
+      status: status,
+      type: type,
+      assignee: assignee,
+      progress: 0
+    });
+  }
+
+  hideTaskModal();
+}
+
+function deleteTaskFromModal() {
+  if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
+    gantt.deleteTask(editingTaskId);
+  }
+  hideTaskModal();
+}
+
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(function() { t.className = 'toast'; }, 3000);
+}
+
+// Close modal on overlay click
+document.getElementById('task-modal').addEventListener('click', function(e) {
+  if (e.target === this) hideTaskModal();
+});
 
 // Default scale
 setScale("month");
