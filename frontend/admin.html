@@ -353,6 +353,22 @@
   </div>
 </div>
 
+<!-- Embed Code Modal -->
+<div class="modal-overlay" id="embed-modal">
+  <div class="modal-box">
+    <h3>Embed Code</h3>
+    <p style="font-size:13px;color:var(--color-muted);margin-bottom:12px;">This code has been copied to your clipboard. Paste it into any HTML page to embed the Gantt chart.</p>
+    <div class="form-field full">
+      <label for="embed-code">Code</label>
+      <textarea id="embed-code" readonly style="font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px;min-height:80px;background:#f8fafc;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideEmbedModal()">Close</button>
+      <button class="btn primary" onclick="copyEmbedAgain()">Copy</button>
+    </div>
+  </div>
+</div>
+
 <!-- Import CSV Modal -->
 <div class="modal-overlay" id="import-modal">
   <div class="modal-box">
@@ -597,6 +613,17 @@ function copyEmbed(slug) {
   const origin = window.location.origin;
   const code = `<mcmc-gantt project="${slug}" api="${origin}" editable height="80vh"></mcmc-gantt>\n<script src="${origin}/sdk/gantt-element.js" type="module"><\/script>`;
   navigator.clipboard.writeText(code).then(() => showToast("Embed code copied!"));
+  document.getElementById('embed-code').value = code;
+  document.getElementById('embed-modal').classList.add('show');
+}
+
+function hideEmbedModal() {
+  document.getElementById('embed-modal').classList.remove('show');
+}
+
+function copyEmbedAgain() {
+  const code = document.getElementById('embed-code').value;
+  navigator.clipboard.writeText(code).then(() => showToast("Copied to clipboard!"));
 }
 
 // --- CSV Import ---
