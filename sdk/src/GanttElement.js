@@ -61,6 +61,13 @@ class McmcGantt extends HTMLElement {
         :host { display: block; width: 100%; }
         .gantt-wrapper { width: 100%; height: ${height}; position: relative; }
         .gantt-today-cell { background: rgba(229, 57, 53, 0.08); border-left: 2px solid #e53935; }
+        .gantt_task_line.gantt_project { background: #2563eb !important; border-color: #2563eb !important; border-radius: 4px; }
+        .gantt_task_line.gantt_task { background: #10b981 !important; border-color: #10b981 !important; border-radius: 4px; }
+        .gantt_task_line.milestone_task { background: #f59e0b !important; border-color: #f59e0b !important; }
+        .gantt_task_line .gantt_task_progress { background: rgba(0,0,0,0.15); border-radius: 4px; }
+        .gantt_grid_head_cell { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; }
+        .gantt_tree_content { font-size: 13px; }
+        .gantt_row.gantt_project .gantt_tree_content { font-weight: 700; }
       </style>
       <div class="gantt-wrapper" id="gantt-container"></div>
     `
