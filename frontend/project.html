@@ -4,52 +4,46 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Gantt Chart</title>
+<link rel="stylesheet" href="/static/layout.css" />
 <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
 <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" />
 <style>
-:root {
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text: #1e293b;
-  --color-muted: #64748b;
-  --color-primary: #2563eb;
-  --color-project: #2563eb;
-  --color-task: #10b981;
-  --color-milestone: #f59e0b;
-  --radius: 10px;
+/* Project page overrides */
+.content-area {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-
-* { box-sizing: border-box; margin: 0; }
-html, body { height: 100%; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--color-bg); color: var(--color-text); }
-
-/* --- Header --- */
-.page-header {
-  padding: 24px 28px 0;
-}
-.header-top {
-  display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px;
-}
-.header-meta { }
-.header-tag {
-  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--color-primary); background: #eff6ff;
-  padding: 3px 8px; border-radius: 4px; margin-bottom: 8px;
-}
-.header-title { font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
-.header-desc { font-size: 13px; color: var(--color-muted); max-width: 500px; }
 
 /* --- Controls bar --- */
 .controls {
-  display: flex; align-items: center; gap: 6px; padding: 10px 28px;
-  border-bottom: 1px solid var(--color-border); background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
-.controls .group { display: flex; gap: 2px; background: #f1f5f9; border-radius: 6px; padding: 2px; }
+.controls .group {
+  display: flex;
+  gap: 2px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 2px;
+}
 .controls button {
-  padding: 6px 12px; border: none; border-radius: 5px;
-  background: transparent; cursor: pointer; font-size: 12px; font-weight: 500;
-  color: var(--color-muted); transition: all 0.15s;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+  transition: all 0.15s;
 }
 .controls button:hover { background: #e2e8f0; color: var(--color-text); }
 .controls button.active { background: var(--color-surface); color: var(--color-text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
@@ -60,27 +54,30 @@ html, body { height: 100%; font-family: -apple-system, "Segoe UI", Roboto, sans-
 .legend { display: flex; align-items: center; gap: 12px; }
 .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-muted); }
 .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
-.legend-swatch.project { background: var(--color-project); }
-.legend-swatch.task { background: var(--color-task); }
-.legend-swatch.milestone { background: var(--color-milestone); width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
+.legend-swatch.project { background: var(--color-primary); }
+.legend-swatch.task { background: #10b981; }
+.legend-swatch.milestone { background: var(--color-warning); width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
 
 /* --- Gantt container --- */
-#gantt_here { width: 100%; height: calc(100vh - 145px); }
+#gantt_here {
+  flex: 1;
+  min-height: 0;
+}
 
 /* --- DHTMLX theme overrides --- */
 .gantt_task_line.gantt_project {
-  background: var(--color-project) !important;
-  border-color: var(--color-project) !important;
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
   border-radius: 4px;
 }
 .gantt_task_line.gantt_task {
-  background: var(--color-task) !important;
-  border-color: var(--color-task) !important;
+  background: #10b981 !important;
+  border-color: #10b981 !important;
   border-radius: 4px;
 }
 .gantt_task_line.milestone_task {
-  background: var(--color-milestone) !important;
-  border-color: var(--color-milestone) !important;
+  background: var(--color-warning) !important;
+  border-color: var(--color-warning) !important;
 }
 .gantt_task_line .gantt_task_progress {
   background: rgba(0,0,0,0.15);
@@ -97,48 +94,408 @@ html, body { height: 100%; font-family: -apple-system, "Segoe UI", Roboto, sans-
 /* Read-only: hide add column */
 .readonly-mode .gantt_grid_head_cell:last-child,
 .readonly-mode .gantt_cell:last-child { display: none; }
+
+/* --- DHTMLX Lightbox (task edit popup) overrides --- */
+.gantt_cal_light {
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+  overflow: hidden;
+}
+
+.gantt_cal_ltitle {
+  background: var(--color-surface) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  padding: 16px 20px !important;
+  height: auto !important;
+  line-height: normal !important;
+}
+
+.gantt_cal_ltitle span {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: var(--color-text) !important;
+}
+
+.gantt_cal_ltitle .gantt_cancel_btn_set,
+.gantt_cal_ltitle .gantt_close_btn {
+  color: var(--color-muted) !important;
+}
+
+.gantt_cal_larea {
+  background: var(--color-surface) !important;
+  padding: 16px 20px !important;
+  overflow-y: auto !important;
+}
+
+.gantt_cal_lsection {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--color-muted) !important;
+  padding: 8px 0 4px !important;
+  border: none !important;
+}
+
+.gantt_wrap_section {
+  overflow: visible !important;
+}
+
+.gantt_cal_ltext {
+  overflow: hidden !important;
+}
+
+.gantt_cal_ltext textarea {
+  font-family: inherit !important;
+  font-size: 13px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px !important;
+  padding: 10px 12px !important;
+  background: var(--color-surface) !important;
+  transition: border-color 0.15s !important;
+  resize: none !important;
+  overflow: hidden !important;
+}
+
+/* Description textarea — allow multi-line */
+.gantt_wrap_section[data-name="description"] .gantt_cal_ltext textarea {
+  height: 100% !important;
+  min-height: 36px !important;
+  overflow-y: auto !important;
+  resize: vertical !important;
+}
+
+/* Assignee textarea — single line appearance, vertically centered */
+.gantt_wrap_section[data-name="assignee"] .gantt_cal_ltext {
+  height: 36px !important;
+  display: flex !important;
+  align-items: stretch !important;
+  overflow: visible !important;
+}
+
+.gantt_wrap_section[data-name="assignee"] .gantt_cal_ltext textarea {
+  height: 36px !important;
+  line-height: 14px !important;
+  padding: 11px 12px !important;
+  vertical-align: middle !important;
+  display: block !important;
+}
+
+.gantt_cal_ltext textarea:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08) !important;
+}
+
+.gantt_section_time {
+  background: transparent !important;
+}
+
+.gantt_section_time select,
+.gantt_cal_lsection select,
+.gantt_cal_larea select {
+  font-family: inherit !important;
+  font-size: 13px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  appearance: auto !important;
+  box-sizing: border-box !important;
+}
+
+.gantt_section_time select {
+  width: auto !important;
+}
+
+.gantt_cal_larea .gantt_section_select {
+  border: none !important;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 38px !important;
+  padding: 2px 0 4px !important;
+  margin-bottom: 2px !important;
+}
+
+.gantt_cal_larea .gantt_section_select select,
+.gantt_cal_larea .gantt_wrap_section select {
+  border: 1px solid var(--color-border) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  appearance: auto !important;
+  display: block !important;
+}
+
+.gantt_section_time select:focus,
+.gantt_cal_lsection select:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+}
+
+.gantt_section_time input {
+  font-family: inherit !important;
+  font-size: 13px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  background: var(--color-surface) !important;
+}
+
+.gantt_cal_larea .gantt_section_time {
+  padding: 4px 0 !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.gantt_cal_larea .gantt_section_time select {
+  width: auto !important;
+  min-width: 0 !important;
+  flex-shrink: 1 !important;
+}
+
+/* Lightbox buttons bar */
+.gantt_cal_lfoot {
+  background: var(--color-surface) !important;
+  border-top: 1px solid var(--color-border) !important;
+  padding: 12px 20px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+.gantt_cal_lfoot .gantt_btn_set {
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  border: 1px solid var(--color-border) !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+  margin: 0 !important;
+  height: auto !important;
+  line-height: normal !important;
+}
+
+.gantt_cal_lfoot .gantt_save_btn_set {
+  background: var(--color-primary) !important;
+  color: #fff !important;
+  border-color: var(--color-primary) !important;
+}
+
+.gantt_cal_lfoot .gantt_save_btn_set:hover {
+  background: var(--color-primary-hover) !important;
+}
+
+.gantt_cal_lfoot .gantt_cancel_btn_set {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+
+.gantt_cal_lfoot .gantt_cancel_btn_set:hover {
+  background: var(--color-bg) !important;
+}
+
+.gantt_cal_lfoot .gantt_delete_btn_set {
+  background: transparent !important;
+  color: var(--color-danger) !important;
+  border-color: transparent !important;
+  margin-right: auto !important;
+}
+
+.gantt_cal_lfoot .gantt_delete_btn_set:hover {
+  background: #fef2f2 !important;
+}
+
+/* Lightbox overlay */
+.gantt_cal_cover {
+  background: rgba(0, 0, 0, 0.3) !important;
+  opacity: 1 !important;
+}
+
+/* --- DHTMLX Confirm/Alert popup overrides --- */
+.gantt_modal_box {
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+  overflow: hidden !important;
+  padding: 24px 28px !important;
+  background: var(--color-surface) !important;
+}
+
+.gantt_popup_title {
+  display: none !important;
+}
+
+.gantt_popup_text {
+  font-size: 14px !important;
+  color: var(--color-text) !important;
+  padding: 0 0 20px !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+.gantt_popup_controls {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 0 !important;
+}
+
+.gantt_popup_button {
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  border: 1px solid var(--color-border) !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+  margin: 0 !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+
+.gantt_popup_button:hover {
+  background: var(--color-bg) !important;
+}
+
+.gantt_popup_button.gantt_ok_button {
+  background: var(--color-danger) !important;
+  color: #fff !important;
+  border-color: var(--color-danger) !important;
+}
+
+.gantt_popup_button.gantt_ok_button:hover {
+  background: #b91c1c !important;
+}
+
+.gantt_popup_button.gantt_cancel_button {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+
+div.gantt-info {
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+  border-radius: 8px !important;
+  box-shadow: var(--shadow-md) !important;
+}
 </style>
 </head>
 <body>
-
-<!-- Header -->
-<div class="page-header">
-  <div class="header-top">
-    <div class="header-meta">
-      <span class="header-tag">Programme Timeline</span>
-      <h1 class="header-title" id="project-title">Loading...</h1>
-      <p class="header-desc" id="project-desc"></p>
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="8" fill="#eff6ff"/>
+        <path d="M8 26L18 8L28 26H8Z" fill="#2563eb" opacity="0.8"/>
+        <path d="M13 26L18 16L23 26H13Z" fill="#f59e0b"/>
+      </svg>
+      <div>
+        <div class="logo-text">Gantt Platform</div>
+        <div class="logo-sub">Project Management</div>
+      </div>
     </div>
-    <div class="legend">
-      <span class="legend-item"><span class="legend-swatch project"></span> Project</span>
-      <span class="legend-item"><span class="legend-swatch task"></span> Task</span>
-      <span class="legend-item"><span class="legend-swatch milestone"></span> Milestone</span>
+    <nav class="sidebar-nav">
+      <a href="/" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="/admin" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Admin Panel</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <div class="main-area">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="header-icon-btn" id="sidebar-toggle" title="Toggle sidebar" onclick="toggleSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="top-header-title" id="page-title">Loading...</div>
+      </div>
+      <div class="top-header-actions">
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch project"></span> Project</span>
+          <span class="legend-item"><span class="legend-swatch task"></span> Task</span>
+          <span class="legend-item"><span class="legend-swatch milestone"></span> Milestone</span>
+        </div>
+        <button class="header-icon-btn" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+        <div class="header-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content: Controls + Gantt -->
+    <div class="content-area">
+      <!-- Controls bar -->
+      <div class="controls">
+        <div class="group" id="zoom-group">
+          <button onclick="setScale('year')" id="btn-year">Years</button>
+          <button onclick="setScale('month')" id="btn-month">Months</button>
+          <button onclick="setScale('week')" id="btn-week">Weeks</button>
+          <button onclick="setScale('day')" id="btn-day">Days</button>
+        </div>
+        <span class="sep"></span>
+        <button onclick="expandAll()">Expand all</button>
+        <button onclick="collapseAll()">Collapse</button>
+        <button onclick="scrollToToday()">Today</button>
+        <span class="spacer"></span>
+        <button onclick="addTask()" id="btn-add" style="display:none;" class="btn primary">+ New Task</button>
+      </div>
+
+      <!-- Gantt chart -->
+      <div id="gantt_here"></div>
     </div>
   </div>
 </div>
-
-<!-- Controls bar -->
-<div class="controls">
-  <div class="group" id="zoom-group">
-    <button onclick="setScale('year')" id="btn-year">Years</button>
-    <button onclick="setScale('month')" id="btn-month">Months</button>
-    <button onclick="setScale('week')" id="btn-week">Weeks</button>
-    <button onclick="setScale('day')" id="btn-day">Days</button>
-  </div>
-  <span class="sep"></span>
-  <button onclick="expandAll()">Expand all</button>
-  <button onclick="collapseAll()">Collapse</button>
-  <button onclick="scrollToToday()">Today →</button>
-  <span class="spacer"></span>
-  <button onclick="addTask()" id="btn-add" style="display:none;">+ New task</button>
-</div>
-
-<!-- Gantt chart -->
-<div id="gantt_here"></div>
 
 <script>
 // --- Resolve project ---
 const pathParts = window.location.pathname.split("/").filter(Boolean);
+
+// Sidebar toggle
+function toggleSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('collapsed');
+  localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+  // Resize gantt after sidebar animation
+  setTimeout(function() { gantt.render(); }, 300);
+}
+(function() {
+  if (localStorage.getItem('sidebar-collapsed') === 'true') {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+})();
 const SLUG = pathParts[pathParts.length - 1] || "persada-phase-1";
 const API_BASE = `/api/projects/${SLUG}`;
 const IS_EMBED = pathParts[0] === "embed";
@@ -148,11 +505,10 @@ if (!IS_EMBED) document.getElementById("btn-add").style.display = "";
 
 // --- Load project metadata ---
 fetch(`/api/projects/${SLUG}`).then(r => r.json()).then(p => {
-  document.getElementById("project-title").textContent = p.title || SLUG;
-  document.getElementById("project-desc").textContent = p.description || "";
+  document.getElementById("page-title").textContent = p.title || SLUG;
   document.title = `${p.title} — Gantt`;
 }).catch(() => {
-  document.getElementById("project-title").textContent = SLUG;
+  document.getElementById("page-title").textContent = SLUG;
 });
 
 // --- Gantt configuration ---
@@ -174,7 +530,10 @@ gantt.config.columns = [
   { name: "text", label: "Task", tree: true, width: 260, resize: true },
   { name: "start_date", label: "Start", align: "center", width: 85 },
   { name: "duration", label: "Days", align: "center", width: 45 },
-  { name: "status", label: "Status", align: "center", width: 90 },
+  { name: "status", label: "Status", align: "center", width: 90, template: function(task) {
+    if (!task.status) return "";
+    return task.status.split(" ").map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
+  }},
 ];
 if (!IS_EMBED) {
   gantt.config.columns.push({ name: "add", width: 36 });
@@ -190,7 +549,7 @@ gantt.config.lightbox.sections = [
       { key: "in progress", label: "In Progress" },
       { key: "complete", label: "Complete" }
   ]},
-  { name: "assignee", height: 30, map_to: "assignee", type: "textarea" },
+  { name: "assignee", height: 30, map_to: "assignee", type: "textarea", single_line: true },
   { name: "type", type: "typeselect", map_to: "type" },
   { name: "time", type: "duration", map_to: "auto" }
 ];
@@ -241,6 +600,57 @@ setScale("month");
 
 // --- Init + load ---
 gantt.init("gantt_here");
+
+// Fix lightbox styling after it opens
+gantt.attachEvent("onLightbox", function(id) {
+  setTimeout(function() {
+    // Fix ALL wrap sections — ensure overflow visible so borders aren't clipped
+    var wrapSections = document.querySelectorAll('.gantt_cal_light .gantt_wrap_section');
+    wrapSections.forEach(function(ws) {
+      ws.style.overflow = 'visible';
+    });
+
+    // Fix section_select containers (Status, Type dropdowns)
+    var selects = document.querySelectorAll('.gantt_cal_light .gantt_section_select');
+    selects.forEach(function(el) {
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      el.style.minHeight = '40px';
+      el.style.paddingBottom = '6px';
+    });
+
+    // Fix gantt_cal_ltext containers (Description, Assignee textareas)
+    var ltexts = document.querySelectorAll('.gantt_cal_light .gantt_cal_ltext');
+    ltexts.forEach(function(el) {
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      el.style.minHeight = '40px';
+      el.style.paddingBottom = '6px';
+    });
+
+    // Fix Assignee textarea specifically — vertically center
+    var sections = document.querySelectorAll('.gantt_cal_light .gantt_cal_lsection');
+    sections.forEach(function(sec) {
+      var label = sec.textContent.trim().toLowerCase();
+      if (label === 'assignee') {
+        var ltext = sec.nextElementSibling;
+        if (ltext) {
+          var ta = ltext.querySelector('textarea');
+          if (ta) {
+            ta.style.height = '36px';
+            ta.style.overflow = 'hidden';
+            ta.style.resize = 'none';
+            ta.style.paddingTop = '9px';
+            ta.style.paddingBottom = '9px';
+            ta.style.lineHeight = '18px';
+          }
+        }
+      }
+    });
+  }, 50);
+  return true;
+});
+
 gantt.load(API_BASE + "/data", function() {
   gantt.showDate(new Date());
 });

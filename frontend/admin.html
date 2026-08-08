@@ -4,151 +4,297 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Gantt Platform — Admin</title>
+<link rel="stylesheet" href="/static/layout.css" />
 <style>
-:root {
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text: #1e293b;
-  --color-muted: #64748b;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-danger: #dc2626;
-  --color-success: #16a34a;
-  --radius: 10px;
+/* Admin page-specific styles */
+.page-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.page-title-row h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+.page-title-row .item-count {
+  font-size: 13px;
+  color: var(--color-muted);
 }
 
-* { box-sizing: border-box; margin: 0; }
-body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--color-bg); color: var(--color-text); min-height: 100vh; }
-a { color: var(--color-primary); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-/* --- Page header --- */
-.page-header {
-  padding: 24px 28px 0;
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
-.header-top {
-  display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px;
+.toolbar .search-box {
+  flex: 1;
+  max-width: 320px;
+  position: relative;
 }
-.header-meta { }
-.header-tag {
-  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--color-primary); background: #eff6ff;
-  padding: 3px 8px; border-radius: 4px; margin-bottom: 8px;
+.toolbar .search-box input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--color-surface);
+  transition: border-color 0.15s;
 }
-.header-title { font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
-.header-desc { font-size: 13px; color: var(--color-muted); max-width: 500px; }
-.header-stats { display: flex; gap: 16px; }
-.stat-box { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px; text-align: center; min-width: 80px; }
-.stat-value { font-size: 20px; font-weight: 800; color: var(--color-text); }
-.stat-label { font-size: 10px; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-
-/* --- Container --- */
-.container { max-width: 960px; margin: 0 auto; padding: 0 28px 48px; }
-
-/* --- Section --- */
-.section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px; }
-.section-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-.section-title .icon { width: 18px; height: 18px; opacity: 0.5; }
-
-/* --- Form --- */
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-.form-field { display: flex; flex-direction: column; gap: 4px; }
-.form-field.full { grid-column: span 2; }
-.form-field label { font-size: 11px; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.form-field input, .form-field textarea, .form-field select {
-  padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 6px;
-  font-size: 13px; background: var(--color-bg); transition: border-color 0.15s;
+.toolbar .search-box input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
-.form-field input:focus, .form-field textarea:focus, .form-field select:focus {
-  outline: none; border-color: var(--color-primary); background: var(--color-surface);
+.toolbar .search-box svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--color-muted);
 }
-.form-field textarea { resize: vertical; min-height: 56px; }
+.toolbar .spacer { flex: 1; }
 
-/* --- Buttons --- */
-.btn {
-  padding: 8px 16px; border-radius: 6px; border: 1px solid var(--color-border);
-  background: var(--color-surface); font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s; color: var(--color-text);
+/* Tab buttons */
+.tab-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
 }
-.btn:hover { background: var(--color-bg); }
-.btn.primary { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
-.btn.primary:hover { background: var(--color-primary-hover); }
-.btn.danger { color: var(--color-danger); border-color: #fca5a5; }
-.btn.danger:hover { background: #fef2f2; }
-.btn.sm { padding: 5px 10px; font-size: 11px; }
-
-/* --- Project list --- */
-.project-grid { display: grid; gap: 10px; }
-.project-card {
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius);
-  padding: 14px 18px; display: flex; align-items: center; gap: 16px;
-  transition: box-shadow 0.15s;
+.tab-group button {
+  padding: 7px 14px;
+  border: none;
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-muted);
+  border-right: 1px solid var(--color-border);
+  transition: all 0.15s;
 }
-.project-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-.project-info { flex: 1; min-width: 0; }
-.project-title { font-size: 14px; font-weight: 700; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.project-slug { font-size: 11px; color: var(--color-muted); font-family: "SF Mono", Monaco, monospace; }
-.project-desc { font-size: 12px; color: var(--color-muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.project-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.tab-group button:last-child { border-right: none; }
+.tab-group button.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+.tab-group button:hover:not(.active) {
+  background: var(--color-bg);
+}
 
-/* --- Import area --- */
+/* Table enhancements */
+.data-table tbody td.actions-cell {
+  white-space: nowrap;
+}
+.slug-cell {
+  font-family: "SF Mono", Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.desc-cell {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.date-cell {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--color-border);
+  margin-top: 8px;
+}
+.pagination button {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: all 0.15s;
+}
+.pagination button:hover { background: var(--color-bg); }
+.pagination button.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+.pagination .page-info { font-size: 12px; color: var(--color-muted); margin: 0 8px; }
+
+/* Import section */
 .import-area {
-  border: 2px dashed var(--color-border); border-radius: 8px; padding: 20px;
-  text-align: center; cursor: pointer; transition: border-color 0.15s;
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
-.import-area:hover { border-color: var(--color-primary); background: #f8faff; }
+.import-area:hover {
+  border-color: var(--color-primary);
+  background: #f8faff;
+}
 .import-area strong { font-size: 13px; color: var(--color-text); }
-.import-area p { font-size: 11px; color: var(--color-muted); margin-top: 6px; }
+.import-area p { font-size: 12px; color: var(--color-muted); margin-top: 6px; }
 .import-area input[type="file"] { display: none; }
-.import-status { font-size: 11px; color: var(--color-muted); margin-top: 8px; }
+.import-status { font-size: 12px; color: var(--color-muted); margin-top: 8px; }
 
-/* --- Toast --- */
-.toast {
-  position: fixed; bottom: 20px; right: 20px; padding: 10px 18px; border-radius: 8px;
-  font-size: 12px; font-weight: 600; color: #fff; background: var(--color-success);
-  opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+/* Modal overlay for create form */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
 }
-.toast.error { background: var(--color-danger); }
-.toast.show { opacity: 1; }
-
-/* --- Empty --- */
-.empty { text-align: center; padding: 32px; color: var(--color-muted); }
-.empty p { font-size: 13px; }
-
-@media (max-width: 640px) {
-  .form-grid { grid-template-columns: 1fr; }
-  .form-field.full { grid-column: span 1; }
-  .header-top { flex-direction: column; gap: 16px; }
-  .project-card { flex-direction: column; align-items: stretch; }
-  .project-actions { justify-content: flex-end; }
+.modal-overlay.show { display: flex; }
+.modal-box {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 24px 28px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-md);
+}
+.modal-box h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>
 </head>
 <body>
-
-<!-- Header -->
-<div class="page-header">
-  <div class="header-top">
-    <div class="header-meta">
-      <span class="header-tag">Admin</span>
-      <h1 class="header-title">Gantt Platform</h1>
-      <p class="header-desc">Create projects, import CSV data, and manage embeddable Gantt charts.</p>
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="8" fill="#eff6ff"/>
+        <path d="M8 26L18 8L28 26H8Z" fill="#2563eb" opacity="0.8"/>
+        <path d="M13 26L18 16L23 26H13Z" fill="#f59e0b"/>
+      </svg>
+      <div>
+        <div class="logo-text">Gantt Platform</div>
+        <div class="logo-sub">Project Management</div>
+      </div>
     </div>
-    <div class="header-stats">
-      <div class="stat-box">
-        <div class="stat-value" id="stat-projects">-</div>
-        <div class="stat-label">Projects</div>
+    <nav class="sidebar-nav">
+      <a href="/" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="/admin" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Admin Panel</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <div class="main-area">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="header-icon-btn" id="sidebar-toggle" title="Toggle sidebar" onclick="toggleSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="top-header-title">Admin Panel</div>
+      </div>
+      <div class="top-header-actions">
+        <button class="header-icon-btn" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+        <div class="header-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content-area">
+      <!-- Project List Card -->
+      <div class="card">
+        <div class="page-title-row">
+          <h2>Project List</h2>
+          <span class="item-count" id="item-count"></span>
+        </div>
+
+        <!-- Toolbar: Search + Actions -->
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="search-input" placeholder="Search projects..." oninput="filterProjects()" />
+          </div>
+          <div class="spacer"></div>
+          <button class="btn" onclick="showImportModal()">Import CSV</button>
+          <button class="btn primary" onclick="showCreateModal()">+ New Project</button>
+        </div>
+
+        <!-- Table -->
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Slug</th>
+                <th>Description</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="project-tbody">
+              <tr><td colspan="5"><div class="empty"><p>Loading...</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="container">
-  <!-- Create project -->
-  <div class="section">
-    <div class="section-title">Create new project</div>
+<!-- Create Project Modal -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal-box">
+    <h3>Create New Project</h3>
     <div class="form-grid">
       <div class="form-field">
         <label for="inp-title">Title</label>
@@ -163,12 +309,54 @@ a:hover { text-decoration: underline; }
         <textarea id="inp-desc" placeholder="Brief project description..."></textarea>
       </div>
     </div>
-    <button class="btn primary" onclick="createProject()">Create project</button>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideCreateModal()">Cancel</button>
+      <button class="btn primary" onclick="createProject()">Create Project</button>
+    </div>
   </div>
+</div>
 
-  <!-- Import CSV -->
-  <div class="section">
-    <div class="section-title">Import CSV</div>
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal-box">
+    <h3>Delete Project</h3>
+    <p style="font-size:14px;color:var(--color-muted);margin-bottom:20px;">Are you sure you want to delete <strong id="delete-project-name"></strong> and ALL its tasks? This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideDeleteModal()">Cancel</button>
+      <button class="btn danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-box">
+    <h3>Edit Project</h3>
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="edit-title">Title</label>
+        <input id="edit-title" type="text" placeholder="Project title" />
+      </div>
+      <div class="form-field">
+        <label for="edit-slug">Slug</label>
+        <input id="edit-slug" type="text" disabled style="opacity:0.6;cursor:not-allowed;" />
+      </div>
+      <div class="form-field full">
+        <label for="edit-desc">Description</label>
+        <textarea id="edit-desc" placeholder="Project description..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideEditModal()">Cancel</button>
+      <button class="btn primary" onclick="saveEditProject()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import CSV Modal -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal-box">
+    <h3>Import CSV</h3>
     <div class="form-grid">
       <div class="form-field">
         <label for="import-project">Project</label>
@@ -188,13 +376,8 @@ a:hover { text-decoration: underline; }
       <input type="file" id="csv-file" accept=".csv" onchange="handleFileSelect(this)" />
     </div>
     <p class="import-status" id="import-status"></p>
-  </div>
-
-  <!-- Project list -->
-  <div class="section">
-    <div class="section-title">Projects</div>
-    <div id="project-list" class="project-grid">
-      <div class="empty"><p>Loading...</p></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideImportModal()">Close</button>
     </div>
   </div>
 </div>
@@ -203,6 +386,10 @@ a:hover { text-decoration: underline; }
 
 <script>
 const API = "";
+let allProjects = [];
+let filteredProjects = [];
+const PER_PAGE = 10;
+let currentPage = 1;
 
 function showToast(msg, isError) {
   const t = document.getElementById("toast");
@@ -211,36 +398,103 @@ function showToast(msg, isError) {
   setTimeout(() => { t.className = "toast"; }, 3000);
 }
 
+// --- Modals ---
+function showCreateModal() { document.getElementById("create-modal").classList.add("show"); }
+function hideCreateModal() { document.getElementById("create-modal").classList.remove("show"); }
+function showImportModal() { document.getElementById("import-modal").classList.add("show"); }
+function hideImportModal() { document.getElementById("import-modal").classList.remove("show"); }
+
+// Close modal on overlay click
+document.querySelectorAll(".modal-overlay").forEach(m => {
+  m.addEventListener("click", function(e) { if (e.target === this) this.classList.remove("show"); });
+});
+
 // --- Load projects ---
 async function loadProjects() {
   const res = await fetch(API + "/api/projects");
-  const projects = await res.json();
-  document.getElementById("stat-projects").textContent = projects.length;
-  renderProjects(projects);
-  renderProjectSelect(projects);
+  allProjects = await res.json();
+  filteredProjects = [...allProjects];
+  currentPage = 1;
+  renderTable();
+  renderProjectSelect(allProjects);
 }
 
-function renderProjects(projects) {
-  const el = document.getElementById("project-list");
-  if (!projects.length) {
-    el.innerHTML = '<div class="empty"><p>No projects yet. Create one above.</p></div>';
+function filterProjects() {
+  const q = document.getElementById("search-input").value.toLowerCase().trim();
+  if (!q) {
+    filteredProjects = [...allProjects];
+  } else {
+    filteredProjects = allProjects.filter(p =>
+      p.title.toLowerCase().includes(q) ||
+      p.slug.toLowerCase().includes(q) ||
+      (p.description || "").toLowerCase().includes(q)
+    );
+  }
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById("project-tbody");
+  const total = filteredProjects.length;
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  if (currentPage > totalPages) currentPage = totalPages;
+
+  const start = (currentPage - 1) * PER_PAGE;
+  const pageItems = filteredProjects.slice(start, start + PER_PAGE);
+
+  // Item count
+  document.getElementById("item-count").textContent = total > 0
+    ? `${start + 1} - ${start + pageItems.length} of ${total} items`
+    : "";
+
+  if (!pageItems.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p>No projects found.</p></div></td></tr>';
+    document.getElementById("pagination").innerHTML = "";
     return;
   }
-  el.innerHTML = projects.map(p => `
-    <div class="project-card">
-      <div class="project-info">
-        <div class="project-title">${esc(p.title)}</div>
-        <div class="project-slug">${esc(p.slug)}</div>
-        ${p.description ? `<div class="project-desc">${esc(p.description)}</div>` : ""}
-      </div>
-      <div class="project-actions">
-        <button class="btn sm" onclick="window.open('/project/${p.slug}', '_blank')">Open</button>
+
+  tbody.innerHTML = pageItems.map(p => {
+    const created = new Date(p.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return `<tr>
+      <td><strong>${esc(p.title)}</strong></td>
+      <td class="slug-cell">${esc(p.slug)}</td>
+      <td class="desc-cell">${esc(p.description || '-')}</td>
+      <td class="date-cell">${created}</td>
+      <td class="actions-cell">
+        <button class="btn sm" onclick="window.open('/project/${p.slug}', '_blank')">View</button>
         <button class="btn sm" onclick="editProject('${p.slug}')">Edit</button>
         <button class="btn sm" onclick="copyEmbed('${p.slug}')">Embed</button>
         <button class="btn sm danger" onclick="deleteProject('${p.slug}')">Delete</button>
-      </div>
-    </div>
-  `).join("");
+      </td>
+    </tr>`;
+  }).join("");
+
+  // Pagination
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const pag = document.getElementById("pagination");
+  if (totalPages <= 1) { pag.innerHTML = ""; return; }
+
+  let html = `<button ${currentPage === 1 ? 'disabled' : ''} onclick="goPage(${currentPage - 1})">&lt; Previous</button>`;
+
+  for (let i = 1; i <= totalPages; i++) {
+    if (totalPages > 7 && i > 3 && i < totalPages - 2 && Math.abs(i - currentPage) > 1) {
+      if (i === 4 || i === totalPages - 3) html += `<span class="page-info">...</span>`;
+      continue;
+    }
+    html += `<button class="${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+
+  html += `<button ${currentPage === totalPages ? 'disabled' : ''} onclick="goPage(${currentPage + 1})">Next &gt;</button>`;
+  pag.innerHTML = html;
+}
+
+function goPage(n) {
+  currentPage = n;
+  renderTable();
 }
 
 function renderProjectSelect(projects) {
@@ -267,6 +521,7 @@ async function createProject() {
     document.getElementById("inp-title").value = "";
     document.getElementById("inp-slug").value = "";
     document.getElementById("inp-desc").value = "";
+    hideCreateModal();
     loadProjects();
   } else {
     const err = await res.json();
@@ -275,37 +530,66 @@ async function createProject() {
 }
 
 // --- Edit project ---
+let editingSlug = null;
+
+function showEditModal() { document.getElementById("edit-modal").classList.add("show"); }
+function hideEditModal() { document.getElementById("edit-modal").classList.remove("show"); editingSlug = null; }
+
 async function editProject(slug) {
   const res = await fetch(API + `/api/projects/${slug}`);
   const p = await res.json();
+  editingSlug = slug;
+  document.getElementById("edit-title").value = p.title || "";
+  document.getElementById("edit-slug").value = p.slug || "";
+  document.getElementById("edit-desc").value = p.description || "";
+  showEditModal();
+}
 
-  const newTitle = prompt("Title:", p.title);
-  if (newTitle === null) return;
+async function saveEditProject() {
+  if (!editingSlug) return;
+  const title = document.getElementById("edit-title").value.trim();
+  const description = document.getElementById("edit-desc").value.trim();
 
-  const newDesc = prompt("Description:", p.description || "");
-  if (newDesc === null) return;
+  if (!title) { showToast("Title is required.", true); return; }
 
-  const updateRes = await fetch(API + `/api/projects/${slug}`, {
+  const res = await fetch(API + `/api/projects/${editingSlug}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: newTitle || p.title, description: newDesc }),
+    body: JSON.stringify({ title, description }),
   });
 
-  if (updateRes.ok) {
+  if (res.ok) {
     showToast("Project updated!");
+    hideEditModal();
     loadProjects();
   } else {
-    const err = await updateRes.json();
+    const err = await res.json();
     showToast(err.detail || "Failed to update.", true);
   }
 }
 
 // --- Delete project ---
-async function deleteProject(slug) {
-  if (!confirm(`Delete project "${slug}" and ALL its tasks? This cannot be undone.`)) return;
-  const res = await fetch(API + `/api/projects/${slug}`, { method: "DELETE" });
-  if (res.ok) { showToast("Deleted."); loadProjects(); }
-  else { showToast("Failed to delete.", true); }
+let deletingSlug = null;
+
+function showDeleteModal() { document.getElementById("delete-modal").classList.add("show"); }
+function hideDeleteModal() { document.getElementById("delete-modal").classList.remove("show"); deletingSlug = null; }
+
+function deleteProject(slug) {
+  deletingSlug = slug;
+  document.getElementById("delete-project-name").textContent = slug;
+  showDeleteModal();
+}
+
+async function confirmDelete() {
+  if (!deletingSlug) return;
+  const res = await fetch(API + `/api/projects/${deletingSlug}`, { method: "DELETE" });
+  if (res.ok) {
+    showToast("Deleted.");
+    hideDeleteModal();
+    loadProjects();
+  } else {
+    showToast("Failed to delete.", true);
+  }
 }
 
 // --- Copy embed code ---
@@ -353,6 +637,18 @@ document.getElementById("inp-title").addEventListener("input", function() {
 });
 
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+// Sidebar toggle
+function toggleSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('collapsed');
+  localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+}
+(function() {
+  if (localStorage.getItem('sidebar-collapsed') === 'true') {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+})();
 
 // Init
 loadProjects();
