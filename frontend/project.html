@@ -102,6 +102,7 @@
   border: 1px solid var(--color-border) !important;
   box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
   overflow: hidden;
+  width: 450px !important;
 }
 
 .gantt_cal_ltitle {
@@ -252,15 +253,20 @@
 .gantt_cal_larea .gantt_section_time {
   padding: 4px 0 !important;
   display: flex !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
   align-items: center !important;
   gap: 6px !important;
 }
 
 .gantt_cal_larea .gantt_section_time select {
   width: auto !important;
-  min-width: 0 !important;
-  flex-shrink: 1 !important;
+  min-width: 50px !important;
+  padding: 6px 8px !important;
+}
+
+.gantt_cal_larea .gantt_section_time .time-label {
+  flex-basis: 36px !important;
+  flex-shrink: 0 !important;
 }
 
 /* Lightbox buttons bar */
@@ -524,11 +530,29 @@ gantt.config.auto_types = true;
 gantt.config.fit_tasks = true;
 gantt.config.row_height = 36;
 gantt.config.bar_height = 22;
+gantt.config.grid_resize = true;
 
 // Grid columns
 gantt.config.columns = [
-  { name: "text", label: "Task", tree: true, width: 260, resize: true },
-  { name: "start_date", label: "Start", align: "center", width: 85 },
+  { name: "text", label: "Task", tree: true, width: 220, resize: true },
+  { name: "start_date", label: "Start", align: "center", width: 100, resize: true, template: function(task) {
+    if (!task.start_date) return "";
+    var d = task.start_date;
+    if (typeof d === "string") d = gantt.date.str_to_date(gantt.config.date_format)(d);
+    var dd = String(d.getDate()).padStart(2, '0');
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var yyyy = d.getFullYear();
+    return dd + '/' + mm + '/' + yyyy;
+  }},
+  { name: "end_date", label: "End", align: "center", width: 100, resize: true, template: function(task) {
+    if (!task.end_date) return "";
+    var d = task.end_date;
+    if (typeof d === "string") d = gantt.date.str_to_date(gantt.config.date_format)(d);
+    var dd = String(d.getDate()).padStart(2, '0');
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var yyyy = d.getFullYear();
+    return dd + '/' + mm + '/' + yyyy;
+  }},
   { name: "duration", label: "Days", align: "center", width: 45 },
   { name: "status", label: "Status", align: "center", width: 90, template: function(task) {
     if (!task.status) return "";
@@ -551,10 +575,85 @@ gantt.config.lightbox.sections = [
   ]},
   { name: "assignee", height: 30, map_to: "assignee", type: "textarea", single_line: true },
   { name: "type", type: "typeselect", map_to: "type" },
-  { name: "time", type: "duration", map_to: "auto" }
+  { name: "time", type: "time", map_to: "auto" }
 ];
 gantt.locale.labels.section_status = "Status";
 gantt.locale.labels.section_assignee = "Assignee";
+gantt.locale.labels.section_time = "Time period";
+gantt.templates.time_picker = gantt.date.date_to_str("%d/%m/%Y");
+
+// Add "Start" and "End" labels to time section + fix styling
+gantt.attachEvent("onLightbox", function(id) {
+  setTimeout(function() {
+    // Add Start/End labels
+    var timeSection = document.querySelector('.gantt_cal_light .gantt_section_time');
+    if (timeSection && !timeSection.querySelector('.time-label')) {
+      var selects = timeSection.querySelectorAll('select');
+      if (selects.length >= 6) {
+        var startLabel = document.createElement('span');
+        startLabel.className = 'time-label';
+        startLabel.textContent = 'Start:';
+        startLabel.style.cssText = 'font-size:12px;font-weight:600;color:#64748b;display:inline-block;width:36px;';
+        selects[0].parentNode.insertBefore(startLabel, selects[0]);
+
+        var endLabel = document.createElement('span');
+        endLabel.className = 'time-label';
+        endLabel.textContent = 'End:';
+        endLabel.style.cssText = 'font-size:12px;font-weight:600;color:#64748b;display:inline-block;width:36px;';
+        // Add line break before End
+        var br = document.createElement('div');
+        br.style.cssText = 'flex-basis:100%;height:0;';
+        selects[3].parentNode.insertBefore(br, selects[3]);
+        selects[3].parentNode.insertBefore(endLabel, selects[3]);
+      }
+    }
+
+    // Fix ALL wrap sections — ensure overflow visible so borders aren't clipped
+    var wrapSections = document.querySelectorAll('.gantt_cal_light .gantt_wrap_section');
+    wrapSections.forEach(function(ws) {
+      ws.style.overflow = 'visible';
+    });
+
+    // Fix section_select containers (Status, Type dropdowns)
+    var sectionSelects = document.querySelectorAll('.gantt_cal_light .gantt_section_select');
+    sectionSelects.forEach(function(el) {
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      el.style.minHeight = '40px';
+      el.style.paddingBottom = '6px';
+    });
+
+    // Fix gantt_cal_ltext containers (Description, Assignee textareas)
+    var ltexts = document.querySelectorAll('.gantt_cal_light .gantt_cal_ltext');
+    ltexts.forEach(function(el) {
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      el.style.minHeight = '40px';
+      el.style.paddingBottom = '6px';
+    });
+
+    // Fix Assignee textarea specifically — vertically center
+    var sections = document.querySelectorAll('.gantt_cal_light .gantt_cal_lsection');
+    sections.forEach(function(sec) {
+      var label = sec.textContent.trim().toLowerCase();
+      if (label === 'assignee') {
+        var ltext = sec.nextElementSibling;
+        if (ltext) {
+          var ta = ltext.querySelector('textarea');
+          if (ta) {
+            ta.style.height = '36px';
+            ta.style.overflow = 'hidden';
+            ta.style.resize = 'none';
+            ta.style.paddingTop = '9px';
+            ta.style.paddingBottom = '9px';
+            ta.style.lineHeight = '18px';
+          }
+        }
+      }
+    });
+  }, 60);
+  return true;
+});
 
 // --- Task styling (CSS class per type) ---
 gantt.templates.task_class = function(start, end, task) {
@@ -600,56 +699,6 @@ setScale("month");
 
 // --- Init + load ---
 gantt.init("gantt_here");
-
-// Fix lightbox styling after it opens
-gantt.attachEvent("onLightbox", function(id) {
-  setTimeout(function() {
-    // Fix ALL wrap sections — ensure overflow visible so borders aren't clipped
-    var wrapSections = document.querySelectorAll('.gantt_cal_light .gantt_wrap_section');
-    wrapSections.forEach(function(ws) {
-      ws.style.overflow = 'visible';
-    });
-
-    // Fix section_select containers (Status, Type dropdowns)
-    var selects = document.querySelectorAll('.gantt_cal_light .gantt_section_select');
-    selects.forEach(function(el) {
-      el.style.overflow = 'visible';
-      el.style.height = 'auto';
-      el.style.minHeight = '40px';
-      el.style.paddingBottom = '6px';
-    });
-
-    // Fix gantt_cal_ltext containers (Description, Assignee textareas)
-    var ltexts = document.querySelectorAll('.gantt_cal_light .gantt_cal_ltext');
-    ltexts.forEach(function(el) {
-      el.style.overflow = 'visible';
-      el.style.height = 'auto';
-      el.style.minHeight = '40px';
-      el.style.paddingBottom = '6px';
-    });
-
-    // Fix Assignee textarea specifically — vertically center
-    var sections = document.querySelectorAll('.gantt_cal_light .gantt_cal_lsection');
-    sections.forEach(function(sec) {
-      var label = sec.textContent.trim().toLowerCase();
-      if (label === 'assignee') {
-        var ltext = sec.nextElementSibling;
-        if (ltext) {
-          var ta = ltext.querySelector('textarea');
-          if (ta) {
-            ta.style.height = '36px';
-            ta.style.overflow = 'hidden';
-            ta.style.resize = 'none';
-            ta.style.paddingTop = '9px';
-            ta.style.paddingBottom = '9px';
-            ta.style.lineHeight = '18px';
-          }
-        }
-      }
-    });
-  }, 50);
-  return true;
-});
 
 gantt.load(API_BASE + "/data", function() {
   gantt.showDate(new Date());
