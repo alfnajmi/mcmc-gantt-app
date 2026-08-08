@@ -68,6 +68,16 @@ class McmcGantt extends HTMLElement {
         .gantt_grid_head_cell { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; }
         .gantt_tree_content { font-size: 13px; }
         .gantt_row.gantt_project .gantt_tree_content { font-weight: 700; }
+        .gantt_cal_light { font-family: -apple-system, "Segoe UI", Roboto, sans-serif !important; border-radius: 12px !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important; overflow: hidden; width: 450px !important; }
+        .gantt_cal_ltitle { background: #fff !important; border-bottom: 1px solid #e2e8f0 !important; padding: 16px 20px !important; height: auto !important; line-height: normal !important; }
+        .gantt_cal_ltitle span { font-size: 16px !important; font-weight: 700 !important; color: #1e293b !important; }
+        .gantt_cal_larea { background: #fff !important; padding: 16px 20px !important; }
+        .gantt_cal_lsection { font-size: 12px !important; font-weight: 600 !important; color: #64748b !important; padding: 8px 0 4px !important; border: none !important; }
+        .gantt_cal_lfoot { background: #fff !important; border-top: 1px solid #e2e8f0 !important; padding: 12px 20px !important; display: flex !important; justify-content: flex-end !important; gap: 8px !important; }
+        .gantt_cal_lfoot .gantt_btn_set { border-radius: 6px !important; padding: 8px 16px !important; font-size: 13px !important; font-weight: 600 !important; border: 1px solid #e2e8f0 !important; margin: 0 !important; height: auto !important; line-height: normal !important; }
+        .gantt_cal_lfoot .gantt_save_btn_set { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; }
+        .gantt_cal_lfoot .gantt_cancel_btn_set { background: #fff !important; color: #1e293b !important; }
+        .gantt_cal_lfoot .gantt_delete_btn_set { background: transparent !important; color: #dc2626 !important; border-color: transparent !important; margin-right: auto !important; }
       </style>
       <div class="gantt-wrapper" id="gantt-container"></div>
     `

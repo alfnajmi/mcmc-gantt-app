@@ -87,6 +87,204 @@ const GANTT_CUSTOM_CSS = `
   .gantt_row.gantt_project .gantt_tree_content {
     font-weight: 700;
   }
+
+  /* --- Lightbox (task edit popup) --- */
+  .gantt_cal_light {
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+    overflow: hidden;
+    width: 450px !important;
+  }
+  .gantt_cal_ltitle {
+    background: #fff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 16px 20px !important;
+    height: auto !important;
+    line-height: normal !important;
+  }
+  .gantt_cal_ltitle span {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+  }
+  .gantt_cal_larea {
+    background: #fff !important;
+    padding: 16px 20px !important;
+    overflow-y: auto !important;
+  }
+  .gantt_cal_lsection {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    padding: 8px 0 4px !important;
+    border: none !important;
+  }
+  .gantt_wrap_section {
+    overflow: visible !important;
+  }
+  .gantt_cal_ltext textarea {
+    font-family: inherit !important;
+    font-size: 13px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    padding: 10px 12px !important;
+    background: #fff !important;
+    resize: none !important;
+  }
+  .gantt_cal_ltext textarea:focus {
+    outline: none !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08) !important;
+  }
+  .gantt_section_select,
+  .gantt_cal_larea .gantt_section_select {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 38px !important;
+    padding: 2px 0 4px !important;
+    border: none !important;
+  }
+  .gantt_section_select select,
+  .gantt_cal_larea select {
+    font-family: inherit !important;
+    font-size: 13px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    appearance: auto !important;
+  }
+  .gantt_section_select select:focus,
+  .gantt_cal_larea select:focus {
+    outline: none !important;
+    border-color: #2563eb !important;
+  }
+  .gantt_section_time {
+    background: transparent !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 4px 0 !important;
+  }
+  .gantt_section_time select {
+    width: auto !important;
+    min-width: 50px !important;
+    padding: 6px 8px !important;
+  }
+  .gantt_section_time input {
+    font-family: inherit !important;
+    font-size: 13px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    background: #fff !important;
+  }
+  .gantt_cal_lfoot {
+    background: #fff !important;
+    border-top: 1px solid #e2e8f0 !important;
+    padding: 12px 20px !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+  }
+  .gantt_cal_lfoot .gantt_btn_set {
+    border-radius: 6px !important;
+    padding: 8px 16px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    font-family: inherit !important;
+    border: 1px solid #e2e8f0 !important;
+    cursor: pointer !important;
+    margin: 0 !important;
+    height: auto !important;
+    line-height: normal !important;
+  }
+  .gantt_cal_lfoot .gantt_save_btn_set {
+    background: #2563eb !important;
+    color: #fff !important;
+    border-color: #2563eb !important;
+  }
+  .gantt_cal_lfoot .gantt_save_btn_set:hover {
+    background: #1d4ed8 !important;
+  }
+  .gantt_cal_lfoot .gantt_cancel_btn_set {
+    background: #fff !important;
+    color: #1e293b !important;
+  }
+  .gantt_cal_lfoot .gantt_cancel_btn_set:hover {
+    background: #f8fafc !important;
+  }
+  .gantt_cal_lfoot .gantt_delete_btn_set {
+    background: transparent !important;
+    color: #dc2626 !important;
+    border-color: transparent !important;
+    margin-right: auto !important;
+  }
+  .gantt_cal_lfoot .gantt_delete_btn_set:hover {
+    background: #fef2f2 !important;
+  }
+  .gantt_cal_cover {
+    background: rgba(0, 0, 0, 0.3) !important;
+    opacity: 1 !important;
+  }
+
+  /* --- Confirm/Alert popup --- */
+  .gantt_modal_box {
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+    overflow: hidden !important;
+    padding: 24px 28px !important;
+    background: #fff !important;
+    min-width: 400px !important;
+  }
+  .gantt_popup_title {
+    display: none !important;
+  }
+  .gantt_popup_text {
+    font-size: 14px !important;
+    color: #1e293b !important;
+    padding: 0 0 20px !important;
+    margin: 0 !important;
+    border: none !important;
+    text-align: center !important;
+  }
+  .gantt_popup_controls {
+    display: flex !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 0 !important;
+  }
+  .gantt_popup_button {
+    border-radius: 6px !important;
+    padding: 8px 16px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    font-family: inherit !important;
+    border: 1px solid #e2e8f0 !important;
+    cursor: pointer !important;
+    margin: 0 !important;
+    background: #fff !important;
+    color: #1e293b !important;
+  }
+  .gantt_popup_button:hover {
+    background: #f8fafc !important;
+  }
+  .gantt_popup_button.gantt_ok_button {
+    background: #dc2626 !important;
+    color: #fff !important;
+    border-color: #dc2626 !important;
+  }
+  .gantt_popup_button.gantt_ok_button:hover {
+    background: #b91c1c !important;
+  }
 `
 
 /**
