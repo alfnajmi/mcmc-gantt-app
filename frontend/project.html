@@ -384,6 +384,12 @@ gantt.config.fit_tasks = true;
 gantt.config.row_height = 36;
 gantt.config.bar_height = 22;
 gantt.config.grid_resize = true;
+gantt.config.type_renderers = gantt.config.type_renderers || {};
+// Ensure milestones render at start_date position
+gantt.templates.task_date = function(date) {
+  var d = gantt.date.date_to_str("%d/%m/%Y");
+  return d(date);
+};
 
 // Grid columns
 gantt.config.columns = [
@@ -525,12 +531,22 @@ function saveTask() {
   var assignee = document.getElementById('task-assignee').value.trim();
 
   if (!text) { showToast('Task name is required.', true); return; }
-  if (!startStr || !endStr) { showToast('Start and End dates are required.', true); return; }
+  if (!startStr) { showToast('Start date is required.', true); return; }
 
   var startDate = new Date(startStr + ' 00:00');
-  var endDate = new Date(endStr + ' 00:00');
-  var duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-  if (duration < 1) { showToast('End date must be after start date.', true); return; }
+  var endDate;
+  var duration;
+
+  if (type === 'milestone') {
+    // Milestones are a single point in time — duration 0
+    endDate = startDate;
+    duration = 0;
+  } else {
+    if (!endStr) { showToast('End date is required.', true); return; }
+    endDate = new Date(endStr + ' 00:00');
+    duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    if (duration < 1) { showToast('End date must be after start date.', true); return; }
+  }
 
   if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
     // Update existing task
