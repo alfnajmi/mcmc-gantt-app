@@ -2,6 +2,30 @@
 
 Embeddable Gantt chart component for any web application. No iframe needed — renders directly in your page's DOM.
 
+Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
+
+## Installation
+
+Add a `.npmrc` to your project to scope `@mcmc` packages to the private registry:
+
+```
+@mcmc:registry=https://devgithub.mcmc.gov.my/_registry/npm/
+//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}
+```
+
+Then install:
+
+```bash
+npm install @mcmc/gantt-chart
+```
+
+For Docker builds, pass the token as a build arg:
+
+```dockerfile
+ARG NPM_TOKEN
+RUN npm install
+```
+
 ## Three ways to use
 
 ### 1. Web Component (any framework or plain HTML)
@@ -34,13 +58,9 @@ Events:
 
 ### 2. Vue 3 Component
 
-```bash
-npm install @mcmc/gantt-chart
-```
-
 ```vue
 <script setup>
-import { GanttChart } from '@mcmc/gantt-chart/vue'
+import GanttChart from '@mcmc/gantt-chart/vue'
 
 function handleClick(task) {
   console.log('Clicked:', task.text)
@@ -68,6 +88,8 @@ Props:
 | `scale` | String | `'month'` | Zoom level |
 | `height` | String | `'600px'` | Container height |
 
+> Note: The Vue wrapper is a default export — use `import GanttChart from '@mcmc/gantt-chart/vue'` (no curly braces).
+
 ### 3. Imperative JS API
 
 ```js
@@ -88,27 +110,30 @@ gantt.setScale('week')
 gantt.destroy()
 ```
 
-## Building
+## Publishing a new version
+
+```bash
+cd sdk
+# 1. Bump version in package.json
+# 2. Build and publish (prepublishOnly runs build automatically)
+npm publish
+```
+
+Ensure you've authenticated:
+
+```bash
+npm config set //devgithub.mcmc.gov.my/_registry/npm/:_authToken <YOUR_GITHUB_TOKEN>
+```
+
+The token needs `write:packages` scope.
+
+## Building locally
 
 ```bash
 cd sdk
 npm install
 npm run build
 # Output in dist/
-```
-
-## Hosting the SDK
-
-After building, serve the `dist/` folder from the Gantt platform:
-
-```
-https://gantt.mcmc.gov.my/sdk/gantt-element.js   ← Web Component
-https://gantt.mcmc.gov.my/sdk/gantt-chart.es.js  ← ES module
-```
-
-Or publish to your private npm registry:
-```bash
-npm publish --registry https://npm.mcmc.gov.my
 ```
 
 ## How it works
