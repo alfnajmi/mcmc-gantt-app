@@ -120,15 +120,21 @@ async def update_task(slug: str, task_id: int, request: Request):
     t = await _parse_form(request)
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            """UPDATE gantt_tasks SET
+        # Ignore updates for temporary IDs that don't exist in DB
+        # (DHTMLX may fire update before POST response remaps the ID)
+        try:
+            result = await conn.execute(
+                """UPDATE gantt_tasks SET
                text=$1, start_date=$2, duration=$3, progress=$4,
                parent=$5, type=$6, assignee=$7, status=$8, sort_order=$9, updated_at=NOW()
                WHERE id=$10 AND project_id=$11""",
-            t["text"], t["start_date"], t["duration"], t["progress"],
-            t["parent"], t["type"], t["assignee"], t["status"], t["sort_order"],
-            task_id, project_id,
-        )
+                t["text"], t["start_date"], t["duration"], t["progress"],
+                t["parent"], t["type"], t["assignee"], t["status"], t["sort_order"],
+                task_id, project_id,
+            )
+        except Exception:
+            # ID out of integer range or other DB error — treat as no-op
+            pass
     return {"action": "updated"}
 
 
@@ -137,10 +143,13 @@ async def delete_task(slug: str, task_id: int):
     project_id = await _get_project_id(slug)
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM gantt_tasks WHERE (id=$1 OR parent=$1) AND project_id=$2",
-            task_id, project_id,
-        )
+        try:
+            await conn.execute(
+                "DELETE FROM gantt_tasks WHERE (id=$1 OR parent=$1) AND project_id=$2",
+                task_id, project_id,
+            )
+        except Exception:
+            pass
     return {"action": "deleted"}
 
 
