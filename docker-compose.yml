@@ -8,9 +8,12 @@ services:
       - "8200:8000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/app:/app/app
+      - ./frontend:/app/static
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/data || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 10s
