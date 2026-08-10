@@ -1,0 +1,89 @@
+name: Deploy to Staging
+
+on:
+  pull_request:
+    branches: [staging]
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: [self-hosted, Linux, X64]
+    environment: Staging
+
+    steps:
+      - name: Fix workspace permissions
+        run: sudo chown -R $(id -u):$(id -g) "${{ github.workspace }}" || true
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build --no-cache \
+            -t gantt-app:staging \
+            -f backend/Dockerfile .
+
+      - name: Save Docker image
+        run: docker save gantt-app:staging -o gantt-app-staging.tar
+
+      - name: Copy image to staging server
+        run: |
+          sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no \
+            gantt-app-staging.tar \
+            ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }}:/tmp/gantt-app-staging.tar
+
+      - name: Deploy to staging server
+        run: |
+          sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no \
+            ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }} << 'EOF'
+          set -e
+
+          APP_DIR="$HOME/disd/git/gantt-app"
+
+          # Load image
+          docker load -i /tmp/gantt-app-staging.tar
+
+          # Tag as expected by docker-compose
+          docker tag gantt-app:staging gantt-app-gantt:latest
+
+          # Restart with new image
+          cd "$APP_DIR"
+          docker compose up -d --force-recreate
+
+          # Wait for health check
+          echo "Waiting for gantt app to be healthy..."
+          for i in $(seq 1 30); do
+              if curl -sf "http://127.0.0.1:8200/api/health" > /dev/null 2>&1; then
+                  echo "Gantt app is healthy!"
+                  break
+              fi
+              if [ "$i" -eq 30 ]; then
+                  echo "ERROR: Gantt app failed health check."
+                  docker logs gantt-app-gantt-1 --tail 20
+                  exit 1
+              fi
+              sleep 2
+          done
+
+          # Cleanup
+          rm -f /tmp/gantt-app-staging.tar
+          echo "=== Gantt app deployed successfully ==="
+          EOF
+
+      - name: Health check via API
+        run: |
+          sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no \
+            ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }} \
+            "curl -sf http://127.0.0.1:8200/api/health && echo ' - Health check passed' || (echo 'Health check failed'; exit 1)"
+
+      - name: Cleanup local image tar
+        if: always()
+        run: rm -f gantt-app-staging.tar
