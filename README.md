@@ -49,7 +49,14 @@ cd gantt-app
 cp .env.example .env
 # Edit .env with your DATABASE_URL
 
-# 3. Run migration (first time or after upgrade)
+# 3. Load environment variables
+export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
+
+# 4. Initialize database (first time — creates base tables)
+psql $DATABASE_URL -f db/init.sql
+
+# 5. Run migrations
+psql $DATABASE_URL -f db/migrations/001_init_sort_order.sql
 psql $DATABASE_URL -f db/migrations/002_multi_project.sql
 
 # 4. Build and start
@@ -212,15 +219,25 @@ Date formats supported: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, ClickUp format
 
 ## Database migrations
 
-| Migration | Description | Status |
-|-----------|-------------|--------|
-| `001_init_sort_order.sql` | Sequential sort_order for drag-reorder | Executed |
-| `002_multi_project.sql` | Multi-project support (projects table, project_id FK) | Pending |
+Migrations must run in order, and require the base tables from `init.sql` to exist first.
 
-Run migrations with:
 ```bash
+# Load env (strips comments automatically)
+export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
+
+# 1. Base tables (idempotent — safe to re-run)
+psql $DATABASE_URL -f db/init.sql
+
+# 2. Migrations in order
+psql $DATABASE_URL -f db/migrations/001_init_sort_order.sql
 psql $DATABASE_URL -f db/migrations/002_multi_project.sql
 ```
+
+| Migration | Description | Depends on |
+|-----------|-------------|------------|
+| `db/init.sql` | Creates `gantt_tasks` and `gantt_links` tables | — |
+| `001_init_sort_order.sql` | Sequential sort_order for drag-reorder | init.sql |
+| `002_multi_project.sql` | Multi-project support (projects table, project_id FK) | init.sql |
 
 ---
 

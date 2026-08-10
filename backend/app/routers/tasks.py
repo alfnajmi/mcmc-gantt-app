@@ -42,12 +42,29 @@ async def _get_project_id(slug: str) -> int:
 async def _parse_form(request: Request) -> dict:
     form = await request.form()
     sort_order_raw = form.get("sort_order")
+
+    # Parse start_date — handle multiple formats from DHTMLX
+    start_raw = form.get("start_date", "")
+    start_date = None
+    for fmt in (DATE_FMT, "%Y-%m-%d", "%d-%m-%Y %H:%M", "%d/%m/%Y %H:%M"):
+        try:
+            start_date = datetime.strptime(start_raw, fmt)
+            break
+        except (ValueError, TypeError):
+            continue
+    if start_date is None:
+        # Fallback: try ISO format
+        try:
+            start_date = datetime.fromisoformat(start_raw.replace("Z", "+00:00").replace("+00:00", ""))
+        except (ValueError, TypeError, AttributeError):
+            start_date = datetime.now()
+
     return {
         "text": form.get("text", "New task"),
-        "start_date": datetime.strptime(form.get("start_date"), DATE_FMT),
-        "duration": int(form.get("duration", 1)),
-        "progress": float(form.get("progress", 0)),
-        "parent": int(form.get("parent", 0)),
+        "start_date": start_date,
+        "duration": int(form.get("duration", 1) or 1),
+        "progress": float(form.get("progress", 0) or 0),
+        "parent": int(form.get("parent", 0) or 0),
         "type": form.get("type", "task"),
         "assignee": form.get("assignee") or None,
         "status": form.get("status") or None,
