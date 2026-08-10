@@ -11,7 +11,7 @@ export default defineConfig({
         'gantt-element': resolve(__dirname, 'src/GanttElement.js'),
         'gantt-vue': resolve(__dirname, 'src/GanttChart.vue'),
       },
-      formats: ['es', 'umd'],
+      formats: ['es'],
       name: 'McmcGantt',
     },
     rollupOptions: {

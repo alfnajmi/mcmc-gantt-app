@@ -3,15 +3,14 @@
   "version": "1.0.0",
   "description": "Embeddable Gantt chart component — Web Component + Vue 3 wrapper",
   "type": "module",
-  "main": "dist/gantt-chart.umd.js",
-  "module": "dist/gantt-chart.es.js",
+  "main": "dist/gantt-chart.js",
+  "module": "dist/gantt-chart.js",
   "exports": {
     ".": {
-      "import": "./dist/gantt-chart.es.js",
-      "require": "./dist/gantt-chart.umd.js"
+      "import": "./dist/gantt-chart.js"
     },
     "./element": "./dist/gantt-element.js",
-    "./vue": "./dist/gantt-vue.es.js"
+    "./vue": "./dist/gantt-vue.js"
   },
   "files": [
     "dist"

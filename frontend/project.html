@@ -91,9 +91,30 @@
 .gantt_tree_content { font-size: 13px; }
 .gantt_row.gantt_project .gantt_tree_content { font-weight: 700; }
 
-/* Read-only: hide add column */
-.readonly-mode .gantt_grid_head_cell:last-child,
-.readonly-mode .gantt_cell:last-child { display: none; }
+/* Read-only: no extra column hiding needed — add column is excluded via JS */
+
+/* Embed mode: hide shell chrome */
+.readonly-mode .sidebar { display: none !important; }
+.readonly-mode .top-header { display: none !important; }
+.readonly-mode .controls .spacer ~ * { display: none; }
+.readonly-mode .main-area { width: 100%; }
+.readonly-mode { background: #ffffff; }
+.readonly-mode .controls { background: #ffffff; border-bottom-color: #e2e8f0; }
+.readonly-mode .content-area { background: #ffffff; }
+.readonly-mode .gantt_grid,
+.readonly-mode .gantt_grid_data,
+.readonly-mode .gantt_row,
+.readonly-mode .gantt_row.odd,
+.readonly-mode .gantt_cell,
+.readonly-mode .gantt_grid_head_row,
+.readonly-mode .gantt_grid_scale,
+.readonly-mode .gantt_task_scale,
+.readonly-mode .gantt_task_bg,
+.readonly-mode .gantt_task_row,
+.readonly-mode .gantt_task_row.odd { background-color: #ffffff !important; }
+.readonly-mode .gantt_container { background-color: #ffffff !important; }
+.readonly-mode .gantt_layout_root { background-color: #ffffff !important; }
+.readonly-mode .gantt_layout_cell { background-color: #ffffff !important; }
 
 /* --- Modal overlay --- */
 .modal-overlay {
