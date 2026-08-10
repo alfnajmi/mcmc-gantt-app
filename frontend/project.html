@@ -400,7 +400,7 @@ gantt.config.drag_resize = !IS_EMBED;
 gantt.config.order_branch = !IS_EMBED;
 gantt.config.open_tree_initially = true;
 gantt.config.readonly = IS_EMBED;
-gantt.config.auto_types = false;
+gantt.config.auto_types = true;
 gantt.config.fit_tasks = true;
 gantt.config.row_height = 36;
 gantt.config.bar_height = 22;
@@ -619,6 +619,21 @@ document.getElementById('task-modal').addEventListener('click', function(e) {
 
 // Default scale
 setScale("month");
+
+// --- Preserve user-set type when auto_types would override ---
+// Store original type from DB so auto_types doesn't revert "project" to "task"
+var _storedTypes = {};
+gantt.attachEvent("onTaskLoading", function(task) {
+  if (task.type) _storedTypes[task.id] = task.type;
+  return true;
+});
+gantt.attachEvent("onAfterTaskUpdate", function(id) {
+  var task = gantt.getTask(id);
+  if (_storedTypes[id] === "project" && task.type !== "project") {
+    task.type = "project";
+    gantt.refreshTask(id);
+  }
+});
 
 // --- Init + load ---
 gantt.init("gantt_here");
