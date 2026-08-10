@@ -445,7 +445,11 @@ if (!IS_EMBED) {
 
 // Lightbox — use custom modal instead of DHTMLX lightbox
 gantt.attachEvent("onBeforeLightbox", function(id) {
-  showTaskModal(id);
+  // When + button is clicked, DHTMLX creates a temp task.
+  // Capture its parent before showing modal.
+  var task = gantt.getTask(id);
+  var parentId = task.parent || 0;
+  showTaskModal(id, parentId);
   return false; // prevent default lightbox
 });
 
@@ -487,19 +491,24 @@ function expandAll() { gantt.eachTask(function(t) { t.$open = true; }); gantt.re
 function collapseAll() { gantt.eachTask(function(t) { t.$open = false; }); gantt.render(); }
 function scrollToToday() { gantt.showDate(new Date()); }
 function addTask() {
-  if (!IS_EMBED) showTaskModal();
+  if (!IS_EMBED) showTaskModal(null, 0);
 }
 
 // --- Custom Task Modal ---
 var editingTaskId = null;
+var newTaskParent = 0;
 
-function showTaskModal(taskId) {
+function showTaskModal(taskId, parentId) {
   editingTaskId = taskId || null;
+  newTaskParent = parentId || 0;
   var modal = document.getElementById('task-modal');
   var title = document.getElementById('task-modal-title');
   var deleteBtn = document.getElementById('task-delete-btn');
 
-  if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
+  // Check if this is a real (persisted) task or a DHTMLX temp task
+  var isExisting = editingTaskId && gantt.isTaskExists(editingTaskId) && editingTaskId < 2000000000;
+
+  if (isExisting) {
     // Editing existing task
     var task = gantt.getTask(editingTaskId);
     title.textContent = 'Edit Task';
@@ -569,7 +578,7 @@ function saveTask() {
     if (duration < 1) { showToast('End date must be after start date.', true); return; }
   }
 
-  if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
+  if (editingTaskId && gantt.isTaskExists(editingTaskId) && editingTaskId < 2000000000) {
     // Update existing task
     var task = gantt.getTask(editingTaskId);
     task.text = text;
@@ -581,7 +590,11 @@ function saveTask() {
     task.assignee = assignee;
     gantt.updateTask(editingTaskId);
   } else {
-    // Create new task
+    // Remove temp task if DHTMLX created one (from + button)
+    if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
+      gantt.silent(function() { gantt.deleteTask(editingTaskId); });
+    }
+    // Create new task with proper parent
     gantt.addTask({
       text: text,
       start_date: startDate,
@@ -590,7 +603,8 @@ function saveTask() {
       status: status,
       type: type,
       assignee: assignee,
-      progress: 0
+      progress: 0,
+      parent: newTaskParent
     });
   }
 
