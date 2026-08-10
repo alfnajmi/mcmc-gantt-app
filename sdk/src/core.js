@@ -338,7 +338,7 @@ export function mountGantt(options) {
     gantt.config.order_branch = editable
     gantt.config.open_tree_initially = true
     gantt.config.readonly = !editable
-    gantt.config.auto_types = false
+    gantt.config.auto_types = true
     gantt.config.fit_tasks = true
     gantt.config.row_height = 36
     gantt.config.bar_height = 22
@@ -399,6 +399,20 @@ export function mountGantt(options) {
         onTaskChange(gantt.getTask(id))
       })
     }
+
+    // Preserve user-set type when auto_types would override
+    const _storedTypes = {}
+    gantt.attachEvent('onTaskLoading', function(task) {
+      if (task.type) _storedTypes[task.id] = task.type
+      return true
+    })
+    gantt.attachEvent('onAfterTaskUpdate', function(id) {
+      const task = gantt.getTask(id)
+      if (_storedTypes[id] === 'project' && task.type !== 'project') {
+        task.type = 'project'
+        gantt.refreshTask(id)
+      }
+    })
 
     // Init
     const apiUrl = `${apiBase}/api/projects/${project}`
