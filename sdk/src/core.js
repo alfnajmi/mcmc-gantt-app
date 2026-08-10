@@ -338,7 +338,7 @@ export function mountGantt(options) {
     gantt.config.order_branch = editable
     gantt.config.open_tree_initially = true
     gantt.config.readonly = !editable
-    gantt.config.auto_types = true
+    gantt.config.auto_types = false
     gantt.config.fit_tasks = true
     gantt.config.row_height = 36
     gantt.config.bar_height = 22
