@@ -68,6 +68,216 @@ open http://localhost:8200/admin
 
 ---
 
+## Package management
+
+The gantt-app repo has two distinct package ecosystems:
+
+### Backend (Python)
+
+Dependencies are managed in `backend/requirements.txt` with pinned versions.
+
+```bash
+# Create a virtual environment (for local dev outside Docker)
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally (outside Docker)
+uvicorn app.main:app --reload --port 8200
+```
+
+When adding a new dependency, pin the exact version:
+
+```bash
+pip install <package>==<version>
+pip freeze | grep <package> >> requirements.txt
+```
+
+In production, dependencies are installed inside the Docker image at build time via `backend/Dockerfile`.
+
+### SDK (`@mcmc/gantt-chart` — npm)
+
+The SDK lives in `sdk/` and is published to the private GitHub Packages npm registry.
+
+**Registry setup** — add `.npmrc` to your project (or globally):
+
+```
+@mcmc:registry=https://devgithub.mcmc.gov.my/_registry/npm/
+//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}
+```
+
+**Install in a consuming project (e.g. persada-web):**
+
+```bash
+npm install @mcmc/gantt-chart
+```
+
+**Build the SDK locally:**
+
+```bash
+cd sdk
+npm install
+npm run build     # Output: sdk/dist/
+```
+
+**Publish a new version:**
+
+```bash
+cd sdk
+# 1. Bump version in package.json
+# 2. Authenticate (one-time)
+npm config set //devgithub.mcmc.gov.my/_registry/npm/:_authToken <GITHUB_TOKEN>
+# 3. Publish (runs build automatically via prepublishOnly)
+npm publish
+```
+
+The token needs `write:packages` scope on devgithub.mcmc.gov.my.
+
+**For Docker builds** that need the SDK as a dependency, pass the token as a build arg:
+
+```dockerfile
+ARG NPM_TOKEN
+RUN echo "//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}" >> .npmrc && npm install
+```
+
+### Frontend (vanilla HTML)
+
+The `frontend/` directory contains plain HTML/CSS files — no build step, no npm. These are served directly by the FastAPI backend as static files (mounted at `/`).
+
+### Docker (production)
+
+The entire app is deployed as a single Docker container:
+
+```bash
+# Build
+docker compose build
+
+# Run
+docker compose up -d
+
+# Rebuild after code changes
+docker compose up --build -d
+```
+
+The `backend/Dockerfile` handles:
+1. Installing Python dependencies
+2. Copying `frontend/` into the image as static assets
+3. Exposing the FastAPI server on port 8000 (mapped to 8200 on host)
+
+### CI/CD
+
+Merging a PR into `staging` triggers the GitHub Actions workflow (`.github/workflows/deploy-staging.yml`) which:
+1. Builds the Docker image on the self-hosted runner
+2. Copies the image tar to the staging server via SSH
+3. Loads and restarts the container
+4. Runs a health check against `/api/health`
+
+---
+
+## Using `@mcmc/gantt-chart` in your project
+
+If you want to embed a Gantt chart in your own frontend (Vue, React, or plain HTML), follow these steps.
+
+### Step 1: Configure the private registry
+
+Create a `.npmrc` file in your project root:
+
+```
+@mcmc:registry=https://devgithub.mcmc.gov.my/_registry/npm/
+//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}
+```
+
+Then set `NPM_TOKEN` in your environment. The token needs `read:packages` scope on devgithub.mcmc.gov.my.
+
+```bash
+export NPM_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+```
+
+### Step 2: Install the package
+
+```bash
+npm install @mcmc/gantt-chart
+```
+
+### Step 3: Use in your app
+
+**Vue 3:**
+
+```vue
+<script setup>
+import GanttChart from '@mcmc/gantt-chart/vue'
+</script>
+
+<template>
+  <GanttChart
+    project="persada-phase-1"
+    api-base="https://gantt-stg.mcmc.gov.my"
+    :editable="true"
+    height="80vh"
+  />
+</template>
+```
+
+**Plain HTML / any framework (Web Component):**
+
+```html
+<mcmc-gantt
+  project="persada-phase-1"
+  api="https://gantt-stg.mcmc.gov.my"
+  editable
+  height="80vh"
+></mcmc-gantt>
+
+<script type="module">
+  import '@mcmc/gantt-chart/element'
+</script>
+```
+
+Or load directly from the Gantt platform (no npm install needed):
+
+```html
+<mcmc-gantt project="persada-phase-1" api="https://gantt-stg.mcmc.gov.my" editable height="80vh"></mcmc-gantt>
+<script src="https://gantt-stg.mcmc.gov.my/sdk/gantt-element.js" type="module"></script>
+```
+
+**Imperative JS:**
+
+```js
+import { mountGantt } from '@mcmc/gantt-chart'
+
+const gantt = mountGantt({
+  container: document.getElementById('gantt-container'),
+  project: 'persada-phase-1',
+  apiBase: 'https://gantt-stg.mcmc.gov.my',
+  editable: true,
+})
+```
+
+### Step 4: Docker / CI builds
+
+For Dockerized projects that install `@mcmc/gantt-chart`, pass the token as a build arg:
+
+```dockerfile
+ARG NPM_TOKEN
+COPY .npmrc package*.json ./
+RUN npm ci
+```
+
+In your CI pipeline or `docker compose build`:
+
+```bash
+docker build --build-arg NPM_TOKEN=$NPM_TOKEN -t my-app .
+```
+
+### CORS
+
+Make sure your portal's origin is listed in the Gantt platform's `CORS_ORIGINS` environment variable, otherwise API requests from the embedded component will be blocked.
+
+---
+
 ## Onboarding guide (for any team)
 
 ### Step 1: Create a project
