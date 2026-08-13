@@ -427,40 +427,42 @@
   margin-top: 16px;
 }
 
-/* ── DHTMLX Confirm/Alert popup overrides ── */
+/* ── DHTMLX Confirm/Alert popup — ClickUp style ── */
 .gantt_modal_box {
   font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   border: 1px solid var(--color-border) !important;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
   overflow: hidden !important;
-  padding: 24px 28px !important;
+  padding: 16px 20px !important;
   background: var(--color-surface) !important;
-  min-width: 400px !important;
+  min-width: 280px !important;
+  max-width: 360px !important;
 }
 
 .gantt_popup_title { display: none !important; }
 
 .gantt_popup_text {
-  font-size: 14px !important;
+  font-size: 13px !important;
   color: var(--color-text) !important;
-  padding: 0 0 20px !important;
+  padding: 0 0 14px !important;
   margin: 0 !important;
   border: none !important;
-  text-align: center !important;
+  text-align: left !important;
+  line-height: 1.4 !important;
 }
 
 .gantt_popup_controls {
   display: flex !important;
-  justify-content: center !important;
+  justify-content: flex-end !important;
   gap: 8px !important;
   padding: 0 !important;
 }
 
 .gantt_popup_button {
   border-radius: 6px !important;
-  padding: 8px 16px !important;
-  font-size: 13px !important;
+  padding: 6px 14px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   font-family: inherit !important;
   border: 1px solid var(--color-border) !important;
@@ -468,6 +470,7 @@
   margin: 0 !important;
   background: var(--color-surface) !important;
   color: var(--color-text) !important;
+  transition: all 0.15s !important;
 }
 
 .gantt_popup_button:hover { background: var(--color-bg) !important; }
@@ -476,6 +479,16 @@
   background: var(--color-danger) !important;
   color: #fff !important;
   border-color: var(--color-danger) !important;
+}
+
+.gantt_popup_button.gantt_ok_button:hover {
+  background: #b91c1c !important;
+}
+
+/* Backdrop for the confirm popup */
+.gantt_cal_cover {
+  background: rgba(0, 0, 0, 0.15) !important;
+  opacity: 1 !important;
 }
 
 .gantt_popup_button.gantt_ok_button:hover { background: #b91c1c !important; }
