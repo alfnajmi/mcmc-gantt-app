@@ -8,98 +8,378 @@
 <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
 <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" />
 <style>
-/* Project page overrides */
+/* ── Page layout ── */
 .content-area {
   padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
-/* --- Controls bar --- */
-.controls {
+/* ── ClickUp-style toolbar ── */
+.gantt-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 20px;
+  justify-content: space-between;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
+  gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
 }
-.controls .group {
+
+.toolbar-left,
+.toolbar-right {
   display: flex;
+  align-items: center;
   gap: 2px;
-  background: #f1f5f9;
-  border-radius: 6px;
-  padding: 2px;
 }
-.controls button {
-  padding: 6px 12px;
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   background: transparent;
-  cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.toolbar-btn.icon-btn {
+  padding: 5px 8px;
+}
+
+/* Scale dropdown */
+.dropdown-wrapper {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  min-width: 100px;
+  padding: 4px;
+  display: none;
+}
+
+.dropdown-menu.show {
+  display: block;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.dropdown-item:hover {
+  background: var(--color-bg);
+}
+
+.dropdown-item.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Toggle button (Closed) */
+.toggle-btn {
+  position: relative;
+  padding-left: 26px;
+}
+
+.toggle-btn .toggle-dot {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: transparent;
   transition: all 0.15s;
 }
-.controls button:hover:not(.btn) { background: #e2e8f0; color: var(--color-text); }
-.controls button.active { background: var(--color-surface); color: var(--color-text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.controls .sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 6px; }
-.controls .spacer { flex: 1; }
 
-/* Legend */
-.legend { display: flex; align-items: center; gap: 12px; }
-.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-muted); }
-.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
-.legend-swatch.project { background: var(--color-primary); }
-.legend-swatch.task { background: #10b981; }
-.legend-swatch.milestone { background: var(--color-warning); width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
+.toggle-btn.active .toggle-dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
 
-/* --- Gantt container --- */
+/* Add Task button */
+.add-task-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.add-task-btn:hover {
+  background: var(--color-primary-hover);
+}
+
+/* ── Gantt container ── */
 #gantt_here {
   flex: 1;
   min-height: 0;
 }
 
-/* --- DHTMLX theme overrides --- */
-.gantt_task_line.gantt_project {
-  background: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-  border-radius: 4px;
+/* ── Weekend striping — diagonal hatched pattern ── */
+.weekend-cell {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 3px,
+    rgba(148, 163, 184, 0.08) 3px,
+    rgba(148, 163, 184, 0.08) 6px
+  ) !important;
+  background-color: rgba(241, 245, 249, 0.6) !important;
 }
-.gantt_task_line.gantt_task {
-  background: #10b981 !important;
-  border-color: #10b981 !important;
-  border-radius: 4px;
+
+/* ── Today line — dashed pink left border on today's column ── */
+.today-cell {
+  border-left: 2px dashed #e84393 !important;
 }
+
+/* ── DHTMLX theme overrides — ClickUp style ── */
+.gantt_grid {
+  border-right: 1px solid var(--color-border) !important;
+}
+
+.gantt_grid_head_cell {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--color-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--color-border) !important;
+  overflow: visible !important;
+}
+
+.gantt_grid_head_row {
+  background: var(--color-surface) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.gantt_row {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.gantt_row:hover {
+  background: var(--color-bg) !important;
+}
+
+.gantt_tree_content {
+  font-size: 13px !important;
+  color: var(--color-text) !important;
+}
+
+.gantt_row.gantt_project .gantt_tree_content {
+  font-weight: 700 !important;
+}
+
+/* Scale (timeline header) */
+.gantt_scale_line {
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.gantt_scale_cell {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--color-muted) !important;
+  border-right: 1px solid #f1f5f9 !important;
+}
+
+/* Today's date highlighted in scale header */
+.gantt_scale_cell.scale-today {
+  color: #e84393 !important;
+  font-weight: 700 !important;
+  position: relative;
+}
+
+.gantt_scale_cell.scale-today::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(232, 67, 147, 0.12);
+  z-index: -1;
+}
+
+/* Task bars */
+.gantt_task_line {
+  border-radius: 4px !important;
+}
+
 .gantt_task_line.milestone_task {
   background: var(--color-warning) !important;
   border-color: var(--color-warning) !important;
 }
+
 .gantt_task_line .gantt_task_progress {
-  background: rgba(0,0,0,0.15);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 4px;
 }
-.today-marker {
-  background: rgba(229, 57, 53, 0.08);
-  border-left: 2px solid #e53935;
+
+/* Status-based bar colors */
+.gantt_task_line.status-complete {
+  background: #22c55e !important;
+  border-color: #16a34a !important;
 }
-.gantt_grid_head_cell { font-size: 11px; font-weight: 600; color: var(--color-muted); text-transform: uppercase; }
-.gantt_tree_content { font-size: 13px; }
-.gantt_row.gantt_project .gantt_tree_content { font-weight: 700; }
 
-/* Read-only: no extra column hiding needed — add column is excluded via JS */
+.gantt_task_line.status-complete .gantt_task_progress {
+  background: rgba(0, 0, 0, 0.1);
+}
 
-/* Embed mode: hide shell chrome */
+.gantt_task_line.status-in-progress {
+  background: #3b82f6 !important;
+  border-color: #2563eb !important;
+}
+
+.gantt_task_line.status-planning {
+  background: #a78bfa !important;
+  border-color: #7c3aed !important;
+}
+
+.gantt_task_line.status-todo {
+  background: #94a3b8 !important;
+  border-color: #64748b !important;
+}
+
+/* Default task (no status) stays light blue */
+.gantt_task_line.gantt_task {
+  background: #93c5fd !important;
+  border-color: #60a5fa !important;
+  border-radius: 4px;
+}
+
+/* Project bar — green, thin line */
+.gantt_task_line.gantt_project {
+  background: #22c55e !important;
+  border-color: #16a34a !important;
+  border-radius: 4px;
+  height: 8px !important;
+  margin-top: 12px;
+}
+
+.gantt_task_line.gantt_project.status-complete {
+  background: #22c55e !important;
+  border-color: #16a34a !important;
+}
+.gantt_task_cell {
+  border-right: 1px solid #f1f5f9 !important;
+}
+
+/* Today marker — hidden (using cell border approach instead) */
+.gantt_marker {
+  display: none !important;
+}
+
+
+/* ── "+ Add Task" row at the bottom ── */
+.add-task-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s;
+}
+
+.add-task-row:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ── Inline "+" subtask button (shows on row hover) ── */
+.subtask-action {
+  display: none;
+  margin-left: 6px;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: all 0.15s;
+}
+
+.gantt_row:hover .subtask-action {
+  display: inline-block;
+}
+
+.subtask-action:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Legend */
+.legend { display: flex; align-items: center; gap: 12px; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-muted); }
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+.legend-swatch.project { background: #22c55e; }
+.legend-swatch.task { background: #93c5fd; }
+.legend-swatch.complete { background: #22c55e; }
+.legend-swatch.milestone { background: var(--color-warning); width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
+
+/* Embed/readonly mode */
 .readonly-mode .sidebar { display: none !important; }
 .readonly-mode .top-header { display: none !important; }
-.readonly-mode .controls .spacer ~ * { display: none; }
+.readonly-mode .toolbar-right { display: none; }
 .readonly-mode .main-area { width: 100%; }
 .readonly-mode { background: #ffffff; }
-.readonly-mode .controls { background: #ffffff; border-bottom-color: #e2e8f0; }
+.readonly-mode .gantt-toolbar { background: #ffffff; border-bottom-color: #e2e8f0; }
 .readonly-mode .content-area { background: #ffffff; }
 .readonly-mode .gantt_grid,
 .readonly-mode .gantt_grid_data,
@@ -116,7 +396,7 @@
 .readonly-mode .gantt_layout_root { background-color: #ffffff !important; }
 .readonly-mode .gantt_layout_cell { background-color: #ffffff !important; }
 
-/* --- Modal overlay --- */
+/* ── Modal overlay ── */
 .modal-overlay {
   display: none;
   position: fixed;
@@ -147,7 +427,7 @@
   margin-top: 16px;
 }
 
-/* --- DHTMLX Confirm/Alert popup overrides --- */
+/* ── DHTMLX Confirm/Alert popup overrides ── */
 .gantt_modal_box {
   font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
   border-radius: 12px !important;
@@ -159,9 +439,7 @@
   min-width: 400px !important;
 }
 
-.gantt_popup_title {
-  display: none !important;
-}
+.gantt_popup_title { display: none !important; }
 
 .gantt_popup_text {
   font-size: 14px !important;
@@ -187,15 +465,12 @@
   font-family: inherit !important;
   border: 1px solid var(--color-border) !important;
   cursor: pointer !important;
-  transition: all 0.15s !important;
   margin: 0 !important;
   background: var(--color-surface) !important;
   color: var(--color-text) !important;
 }
 
-.gantt_popup_button:hover {
-  background: var(--color-bg) !important;
-}
+.gantt_popup_button:hover { background: var(--color-bg) !important; }
 
 .gantt_popup_button.gantt_ok_button {
   background: var(--color-danger) !important;
@@ -203,20 +478,261 @@
   border-color: var(--color-danger) !important;
 }
 
-.gantt_popup_button.gantt_ok_button:hover {
-  background: #b91c1c !important;
+.gantt_popup_button.gantt_ok_button:hover { background: #b91c1c !important; }
+
+/* ── "Add a Column" button in grid header ── */
+.add-column-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  transition: all 0.15s;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
 }
 
-.gantt_popup_button.gantt_cancel_button {
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
+.add-column-btn:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: var(--color-primary);
 }
 
-div.gantt-info {
-  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
-  border-radius: 8px !important;
-  box-shadow: var(--shadow-md) !important;
+/* ── Fields panel (inside gantt content area, right side) ── */
+.fields-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 280px;
+  height: 100%;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.06);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
 }
+
+.fields-panel.open {
+  transform: translateX(0);
+}
+
+.fields-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fields-panel-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.fields-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fields-panel-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fields-panel-close:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.fields-search {
+  padding: 10px 16px;
+}
+
+.fields-search input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--color-surface);
+  transition: border-color 0.15s;
+}
+
+.fields-search input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.fields-search input::placeholder {
+  color: var(--color-muted);
+}
+
+.fields-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 16px;
+}
+
+.fields-tab {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.fields-tab:hover {
+  color: var(--color-text);
+}
+
+.fields-tab.active {
+  color: var(--color-text);
+  font-weight: 600;
+  border-bottom-color: var(--color-primary);
+}
+
+.fields-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 16px;
+}
+
+.fields-section {
+  margin-bottom: 14px;
+}
+
+.fields-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.fields-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fields-section-count {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.field-row:last-child {
+  border-bottom: none;
+}
+
+.field-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.field-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.field-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+/* Toggle switch */
+.field-toggle {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.field-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.field-toggle .slider {
+  position: absolute;
+  inset: 0;
+  background: #cbd5e1;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.field-toggle .slider::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.field-toggle input:checked + .slider {
+  background: var(--color-primary);
+}
+
+.field-toggle input:checked + .slider::before {
+  transform: translateX(14px);
+}
+
+
 </style>
 </head>
 <body>
@@ -270,6 +786,7 @@ div.gantt-info {
         <div class="legend">
           <span class="legend-item"><span class="legend-swatch project"></span> Project</span>
           <span class="legend-item"><span class="legend-swatch task"></span> Task</span>
+          <span class="legend-item"><span class="legend-swatch complete"></span> Complete</span>
           <span class="legend-item"><span class="legend-swatch milestone"></span> Milestone</span>
         </div>
         <button class="header-icon-btn" title="Notifications">
@@ -281,26 +798,123 @@ div.gantt-info {
       </div>
     </header>
 
-    <!-- Content: Controls + Gantt -->
+    <!-- Content: Toolbar + Gantt -->
     <div class="content-area">
-      <!-- Controls bar -->
-      <div class="controls">
-        <div class="group" id="zoom-group">
-          <button onclick="setScale('year')" id="btn-year">Years</button>
-          <button onclick="setScale('month')" id="btn-month">Months</button>
-          <button onclick="setScale('week')" id="btn-week">Weeks</button>
-          <button onclick="setScale('day')" id="btn-day">Days</button>
+      <!-- ClickUp-style toolbar -->
+      <div class="gantt-toolbar">
+        <div class="toolbar-left">
+          <button class="toolbar-btn" onclick="scrollToToday()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Today
+          </button>
+
+          <!-- Scale dropdown -->
+          <div class="dropdown-wrapper">
+            <button class="toolbar-btn" id="scale-btn" onclick="toggleScaleDropdown()">
+              <span id="scale-label">Week</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="dropdown-menu" id="scale-dropdown">
+              <button class="dropdown-item" onclick="setScale('day')">Day</button>
+              <button class="dropdown-item active" onclick="setScale('week')">Week</button>
+              <button class="dropdown-item" onclick="setScale('month')">Month</button>
+              <button class="dropdown-item" onclick="setScale('year')">Year</button>
+            </div>
+          </div>
+
+          <button class="toolbar-btn" onclick="autoFit()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+            Auto Fit
+          </button>
+
+          <button class="toolbar-btn" onclick="exportGantt()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export
+          </button>
         </div>
-        <span class="sep"></span>
-        <button onclick="expandAll()">Expand all</button>
-        <button onclick="collapseAll()">Collapse</button>
-        <button onclick="scrollToToday()">Today</button>
-        <span class="spacer"></span>
-        <button onclick="addTask()" id="btn-add" style="display:none;padding:8px 16px;font-size:13px;font-weight:700;border-radius:8px;" class="btn primary">+ New Task</button>
+
+        <div class="toolbar-right">
+          <button class="toolbar-btn icon-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/>
+            </svg>
+            Sort
+          </button>
+
+          <button class="toolbar-btn icon-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            Filter
+          </button>
+
+          <button class="toolbar-btn toggle-btn active" id="closed-btn" onclick="toggleClosed()">
+            <span class="toggle-dot"></span>
+            Closed
+          </button>
+
+          <button class="toolbar-btn icon-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            Assignee
+          </button>
+
+          <button class="toolbar-btn icon-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
+
+          <button class="toolbar-btn icon-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            Customize
+          </button>
+
+          <button class="add-task-btn" id="btn-add" style="display:none;" onclick="addTask()">
+            Add Task
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Gantt chart -->
       <div id="gantt_here"></div>
+
+      <!-- Fields Panel (Add a Column) — inside gantt area -->
+      <div class="fields-panel" id="fields-panel">
+        <div class="fields-panel-header">
+          <h3>Fields</h3>
+          <div class="fields-panel-header-actions">
+            <button class="fields-panel-close" onclick="closeFieldsPanel()" title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="fields-search">
+          <input type="text" id="fields-search-input" placeholder="Search Task Fields" oninput="filterFields()" />
+        </div>
+        <div class="fields-tabs">
+          <button class="fields-tab active">Add existing</button>
+        </div>
+        <div class="fields-body" id="fields-body">
+          <!-- Dynamically rendered -->
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -361,14 +975,13 @@ div.gantt-info {
 
 <script>
 // --- Resolve project ---
-const pathParts = window.location.pathname.split("/").filter(Boolean);
+var pathParts = window.location.pathname.split("/").filter(Boolean);
 
 // Sidebar toggle
 function toggleSidebar() {
   var sidebar = document.getElementById('sidebar');
   sidebar.classList.toggle('collapsed');
   localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
-  // Resize gantt after sidebar animation
   setTimeout(function() { gantt.render(); }, 300);
 }
 (function() {
@@ -376,20 +989,42 @@ function toggleSidebar() {
     document.getElementById('sidebar').classList.add('collapsed');
   }
 })();
-const SLUG = pathParts[pathParts.length - 1] || "persada-phase-1";
-const API_BASE = `/api/projects/${SLUG}`;
-const IS_EMBED = pathParts[0] === "embed";
+
+var SLUG = pathParts[pathParts.length - 1] || "persada-phase-1";
+var API_BASE = "/api/projects/" + SLUG;
+var IS_EMBED = pathParts[0] === "embed";
 
 if (IS_EMBED) document.body.classList.add("readonly-mode");
 if (!IS_EMBED) document.getElementById("btn-add").style.display = "";
 
 // --- Load project metadata ---
-fetch(`/api/projects/${SLUG}`).then(r => r.json()).then(p => {
+fetch("/api/projects/" + SLUG).then(function(r) { return r.json(); }).then(function(p) {
   document.getElementById("page-title").textContent = p.title || SLUG;
-  document.title = `${p.title} — Gantt`;
-}).catch(() => {
+  document.title = (p.title || SLUG) + " — Gantt";
+}).catch(function() {
   document.getElementById("page-title").textContent = SLUG;
 });
+
+// --- Scale dropdown ---
+var currentScale = "week";
+
+function toggleScaleDropdown() {
+  var menu = document.getElementById("scale-dropdown");
+  menu.classList.toggle("show");
+}
+
+// Close dropdown on outside click
+document.addEventListener("click", function(e) {
+  var wrapper = document.querySelector(".dropdown-wrapper");
+  if (!wrapper.contains(e.target)) {
+    document.getElementById("scale-dropdown").classList.remove("show");
+  }
+});
+
+function toggleClosed() {
+  var btn = document.getElementById("closed-btn");
+  btn.classList.toggle("active");
+}
 
 // --- Gantt configuration ---
 gantt.config.date_format = "%Y-%m-%d %H:%i";
@@ -403,93 +1038,192 @@ gantt.config.readonly = IS_EMBED;
 gantt.config.auto_types = true;
 gantt.config.fit_tasks = true;
 gantt.config.row_height = 36;
-gantt.config.bar_height = 22;
+gantt.config.bar_height = 32;
+gantt.config.scale_height = 50;
 gantt.config.grid_resize = true;
-gantt.config.type_renderers = gantt.config.type_renderers || {};
-// Ensure milestones render at start_date position
-gantt.templates.task_date = function(date) {
-  var d = gantt.date.date_to_str("%d/%m/%Y");
-  return d(date);
-};
 
-// Grid columns
+// Only show Name column initially — ClickUp style (will be overridden by rebuildGanttColumns)
 gantt.config.columns = [
-  { name: "text", label: "Task", tree: true, width: 220, resize: true },
-  { name: "start_date", label: "Start", align: "center", width: 100, resize: true, template: function(task) {
-    if (!task.start_date) return "";
-    var d = task.start_date;
-    if (typeof d === "string") d = gantt.date.str_to_date(gantt.config.date_format)(d);
-    var dd = String(d.getDate()).padStart(2, '0');
-    var mm = String(d.getMonth() + 1).padStart(2, '0');
-    var yyyy = d.getFullYear();
-    return dd + '/' + mm + '/' + yyyy;
-  }},
-  { name: "end_date", label: "End", align: "center", width: 100, resize: true, template: function(task) {
-    if (!task.end_date) return "";
-    var d = task.end_date;
-    if (typeof d === "string") d = gantt.date.str_to_date(gantt.config.date_format)(d);
-    var dd = String(d.getDate()).padStart(2, '0');
-    var mm = String(d.getMonth() + 1).padStart(2, '0');
-    var yyyy = d.getFullYear();
-    return dd + '/' + mm + '/' + yyyy;
-  }},
-  { name: "duration", label: "Days", align: "center", width: 45 },
-  { name: "status", label: "Status", align: "center", width: 90, template: function(task) {
-    if (!task.status) return "";
-    return task.status.split(" ").map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
-  }},
+  { name: "text", label: "Name", tree: true, width: 280, resize: true },
 ];
-if (!IS_EMBED) {
-  gantt.config.columns.push({ name: "add", width: 36 });
-}
 
-// Lightbox — use custom modal instead of DHTMLX lightbox
+// Lightbox — use custom modal instead
 gantt.attachEvent("onBeforeLightbox", function(id) {
-  // When + button is clicked, DHTMLX creates a temp task.
-  // Capture its parent before showing modal.
   var task = gantt.getTask(id);
   var parentId = task.parent || 0;
   showTaskModal(id, parentId);
-  return false; // prevent default lightbox
+  return false;
 });
 
-// --- Task styling (CSS class per type) ---
+// --- Task styling (color by status) ---
 gantt.templates.task_class = function(start, end, task) {
-  if (task.type === "project") return "gantt_project";
-  if (task.type === "milestone") return "milestone_task";
-  return "gantt_task";
+  var cls = "";
+  // Type-based class
+  if (task.type === "project") cls = "gantt_project";
+  else if (task.type === "milestone") cls = "milestone_task";
+  else cls = "gantt_task";
+
+  // Status-based color
+  if (task.status === "complete") cls += " status-complete";
+  else if (task.status === "in progress") cls += " status-in-progress";
+  else if (task.status === "planning") cls += " status-planning";
+  else if (task.status === "to do") cls += " status-todo";
+
+  return cls;
 };
 
-// Today marker
+// --- "Create subtask" on hover ---
+if (!IS_EMBED) {
+  gantt.attachEvent("onTaskClick", function(id, e) {
+    // Handle "Create subtask" click
+    if (e.target && e.target.closest && e.target.closest(".subtask-action")) {
+      showTaskModal(null, id);
+      return false;
+    }
+    return true;
+  });
+
+  // Customize the grid_open_tree_icon to include a subtask button
+  var _originalGridRowClass = gantt.templates.grid_row_class;
+  gantt.templates.grid_row_class = function(start, end, task) {
+    var cls = _originalGridRowClass ? _originalGridRowClass(start, end, task) : "";
+    return cls;
+  };
+}
+
+// --- Weekend cell class + today line ---
 gantt.templates.timeline_cell_class = function(task, date) {
-  const today = new Date();
+  var cls = "";
+  var day = date.getDay();
+
+  // Determine current bottom-most scale unit and step
+  var scales = gantt.config.scales;
+  var bottomScale = (scales && scales.length > 0) ? scales[scales.length - 1] : { unit: "day", step: 1 };
+  var currentScaleUnit = bottomScale.unit;
+  var currentScaleStep = bottomScale.step || 1;
+
+  // Weekend striping (only meaningful at day-level granularity)
+  if (currentScaleUnit === "day" && (day === 0 || day === 6)) {
+    cls = "weekend-cell";
+  }
+
+  // Today line — check if today falls within this cell's range
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var cellStart = new Date(date);
+  cellStart.setHours(0, 0, 0, 0);
+
+  var cellEnd = new Date(cellStart);
+  if (currentScaleUnit === "day") {
+    cellEnd.setDate(cellEnd.getDate() + currentScaleStep);
+  } else if (currentScaleUnit === "week") {
+    cellEnd.setDate(cellEnd.getDate() + 7 * currentScaleStep);
+  } else if (currentScaleUnit === "month") {
+    cellEnd.setMonth(cellEnd.getMonth() + currentScaleStep);
+  } else if (currentScaleUnit === "quarter") {
+    cellEnd.setMonth(cellEnd.getMonth() + 3 * currentScaleStep);
+  } else if (currentScaleUnit === "year") {
+    cellEnd.setFullYear(cellEnd.getFullYear() + currentScaleStep);
+  } else {
+    cellEnd.setDate(cellEnd.getDate() + 7);
+  }
+
+  if (today >= cellStart && today < cellEnd) {
+    cls += " today-cell";
+  }
+
+  return cls;
+};
+
+// --- Highlight today's date in scale header ---
+gantt.templates.scale_cell_class = function(date) {
+  var today = new Date();
   if (date.getFullYear() === today.getFullYear() &&
       date.getMonth() === today.getMonth() &&
       date.getDate() === today.getDate()) {
-    return "today-marker";
+    return "scale-today";
   }
   return "";
 };
 
-// --- Zoom scales ---
-const SCALES = {
-  year: [{ unit: "year", step: 1, format: "%Y" }, { unit: "month", step: 3, format: "%M" }],
-  month: [{ unit: "month", step: 1, format: "%F %Y" }, { unit: "week", step: 1, format: "%W" }],
-  week: [{ unit: "week", step: 1, format: "Week %W" }, { unit: "day", step: 1, format: "%d %D" }],
-  day: [{ unit: "day", step: 1, format: "%d %M" }],
+// --- Week number helper ---
+function getWeekNumber(date) {
+  var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  var dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+var SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var SHORT_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// --- Zoom scales (ClickUp-style week format) ---
+var SCALES = {
+  year: [
+    { unit: "year", step: 1, format: "%Y" },
+    { unit: "quarter", step: 1, format: function(date) {
+      var q = Math.floor(date.getMonth() / 3) + 1;
+      return "Q" + q;
+    }},
+  ],
+  month: [
+    { unit: "month", step: 1, format: "%F %Y" },
+    { unit: "week", step: 1, format: function(date) {
+      return "W" + getWeekNumber(date);
+    }},
+  ],
+  week: [
+    { unit: "week", step: 1, format: function(date) {
+      var weekNum = getWeekNumber(date);
+      var endDate = new Date(date);
+      endDate.setDate(endDate.getDate() + 6);
+      var month = SHORT_MONTHS[date.getMonth()];
+      return "W" + weekNum + "  " + month + " " + date.getDate() + " - " + endDate.getDate();
+    }},
+    { unit: "day", step: 1, format: function(date) {
+      return SHORT_DAYS[date.getDay()] + " " + date.getDate();
+    }},
+  ],
+  day: [
+    { unit: "day", step: 1, format: function(date) {
+      return SHORT_DAYS[date.getDay()] + " " + date.getDate() + " " + SHORT_MONTHS[date.getMonth()];
+    }},
+  ],
 };
 
 function setScale(level) {
-  gantt.config.scales = SCALES[level] || SCALES.month;
+  currentScale = level;
+  gantt.config.scales = SCALES[level] || SCALES.week;
   gantt.render();
-  document.querySelectorAll("#zoom-group button").forEach(b => b.classList.remove("active"));
-  const btn = document.getElementById("btn-" + level);
-  if (btn) btn.classList.add("active");
+
+  // Update dropdown label
+  var labels = { day: "Day", week: "Week", month: "Month", year: "Year" };
+  document.getElementById("scale-label").textContent = labels[level] || "Week";
+
+  // Update active state in dropdown
+  var items = document.querySelectorAll(".dropdown-item");
+  items.forEach(function(item) { item.classList.remove("active"); });
+  var idx = { day: 0, week: 1, month: 2, year: 3 };
+  if (items[idx[level]]) items[idx[level]].classList.add("active");
+
+  // Close dropdown
+  document.getElementById("scale-dropdown").classList.remove("show");
 }
 
-function expandAll() { gantt.eachTask(function(t) { t.$open = true; }); gantt.render(); }
-function collapseAll() { gantt.eachTask(function(t) { t.$open = false; }); gantt.render(); }
 function scrollToToday() { gantt.showDate(new Date()); }
+
+function autoFit() {
+  gantt.config.fit_tasks = true;
+  gantt.render();
+}
+
+function exportGantt() {
+  if (gantt.exportToPDF) {
+    gantt.exportToPDF();
+  }
+}
+
 function addTask() {
   if (!IS_EMBED) showTaskModal(null, 0);
 }
@@ -505,11 +1239,9 @@ function showTaskModal(taskId, parentId) {
   var title = document.getElementById('task-modal-title');
   var deleteBtn = document.getElementById('task-delete-btn');
 
-  // Check if this is a real (persisted) task or a DHTMLX temp task
   var isExisting = editingTaskId && gantt.isTaskExists(editingTaskId) && editingTaskId < 2000000000;
 
   if (isExisting) {
-    // Editing existing task
     var task = gantt.getTask(editingTaskId);
     title.textContent = 'Edit Task';
     document.getElementById('task-text').value = task.text || '';
@@ -529,7 +1261,6 @@ function showTaskModal(taskId, parentId) {
     }
     deleteBtn.style.display = '';
   } else {
-    // Creating new task
     title.textContent = 'New Task';
     document.getElementById('task-text').value = '';
     document.getElementById('task-assignee').value = '';
@@ -568,7 +1299,6 @@ function saveTask() {
   var duration;
 
   if (type === 'milestone') {
-    // Milestones are a single point in time — duration 0
     endDate = startDate;
     duration = 0;
   } else {
@@ -579,7 +1309,6 @@ function saveTask() {
   }
 
   if (editingTaskId && gantt.isTaskExists(editingTaskId) && editingTaskId < 2000000000) {
-    // Update existing task
     var task = gantt.getTask(editingTaskId);
     task.text = text;
     task.start_date = startDate;
@@ -590,11 +1319,9 @@ function saveTask() {
     task.assignee = assignee;
     gantt.updateTask(editingTaskId);
   } else {
-    // Remove temp task if DHTMLX created one (from + button)
     if (editingTaskId && gantt.isTaskExists(editingTaskId)) {
       gantt.silent(function() { gantt.deleteTask(editingTaskId); });
     }
-    // Create new task with proper parent
     gantt.addTask({
       text: text,
       start_date: startDate,
@@ -631,11 +1358,281 @@ document.getElementById('task-modal').addEventListener('click', function(e) {
   if (e.target === this) hideTaskModal();
 });
 
-// Default scale
-setScale("month");
+// --- Default scale: week ---
+setScale("week");
+
+// --- Fields Panel (Add a Column) ---
+var AVAILABLE_FIELDS = [
+  { key: "text", label: "Task Name", icon: "Aa", alwaysOn: true },
+  { key: "start_date", label: "Start date", icon: "calendar" },
+  { key: "end_date", label: "Due date", icon: "calendar" },
+  { key: "duration", label: "Duration", icon: "clock" },
+  { key: "status", label: "Status", icon: "circle" },
+  { key: "assignee", label: "Assignee", icon: "user" },
+  { key: "priority", label: "Priority", icon: "flag" },
+  { key: "progress", label: "Progress", icon: "bar-chart" },
+  { key: "type", label: "Task Type", icon: "tag" },
+];
+
+// Track which fields are shown (start with just "text")
+var shownFields = { text: true };
+
+// Load from localStorage if available
+(function() {
+  var stored = localStorage.getItem("gantt-fields-" + SLUG);
+  if (stored) {
+    try { shownFields = JSON.parse(stored); } catch(e) {}
+  }
+})();
+
+function saveFieldsState() {
+  localStorage.setItem("gantt-fields-" + SLUG, JSON.stringify(shownFields));
+}
+
+function getFieldIcon(icon) {
+  var icons = {
+    "Aa": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h6"/><path d="M14 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2"/><path d="M3 12h7"/><path d="M14 12h7"/><path d="M3 19h4"/></svg>',
+    "calendar": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    "clock": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    "circle": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>',
+    "user": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    "flag": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+    "bar-chart": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+    "tag": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+  };
+  return icons[icon] || icons["circle"];
+}
+
+function openFieldsPanel() {
+  document.getElementById("fields-panel").classList.add("open");
+  renderFieldsList();
+}
+
+function closeFieldsPanel() {
+  document.getElementById("fields-panel").classList.remove("open");
+}
+
+function filterFields() {
+  renderFieldsList();
+}
+
+function renderFieldsList() {
+  var body = document.getElementById("fields-body");
+  var query = (document.getElementById("fields-search-input").value || "").toLowerCase().trim();
+
+  var shownItems = [];
+  var hiddenItems = [];
+
+  AVAILABLE_FIELDS.forEach(function(field) {
+    if (query && field.label.toLowerCase().indexOf(query) === -1) return;
+    if (shownFields[field.key]) {
+      shownItems.push(field);
+    } else {
+      hiddenItems.push(field);
+    }
+  });
+
+  var html = '';
+
+  // Shown section
+  html += '<div class="fields-section">';
+  html += '<div class="fields-section-header"><span class="fields-section-title">Shown</span><span class="fields-section-count">' + shownItems.length + '</span></div>';
+  shownItems.forEach(function(field) {
+    var disabled = field.alwaysOn ? 'disabled' : '';
+    html += '<div class="field-row">';
+    html += '<span class="field-icon">' + getFieldIcon(field.icon) + '</span>';
+    html += '<span class="field-label">' + field.label + '</span>';
+    html += '<label class="field-toggle"><input type="checkbox" checked ' + disabled + ' onchange="toggleField(\'' + field.key + '\', this.checked)" /><span class="slider"></span></label>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Properties (hidden) section
+  if (hiddenItems.length > 0) {
+    html += '<div class="fields-section">';
+    html += '<div class="fields-section-header"><span class="fields-section-title">Properties</span><span class="fields-section-count">' + hiddenItems.length + '</span></div>';
+    hiddenItems.forEach(function(field) {
+      html += '<div class="field-row">';
+      html += '<span class="field-icon">' + getFieldIcon(field.icon) + '</span>';
+      html += '<span class="field-label">' + field.label + '</span>';
+      html += '<label class="field-toggle"><input type="checkbox" onchange="toggleField(\'' + field.key + '\', this.checked)" /><span class="slider"></span></label>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+function toggleField(key, enabled) {
+  if (enabled) {
+    shownFields[key] = true;
+  } else {
+    delete shownFields[key];
+  }
+  saveFieldsState();
+  rebuildGanttColumns();
+  renderFieldsList();
+}
+
+function rebuildGanttColumns() {
+  var columns = [];
+
+  // Always show Name as the tree column with inline subtask button
+  columns.push({
+    name: "text", label: "Name", tree: true, width: 220, resize: true,
+    template: function(task) {
+      if (IS_EMBED) return task.text;
+      var actions = '';
+      actions += '<span class="subtask-action" title="Create subtask">+</span>';
+      return task.text + actions;
+    }
+  });
+
+  // Add other shown columns
+  if (shownFields["start_date"]) {
+    columns.push({ name: "start_date", label: "Start", align: "center", width: 100, resize: true, template: function(task) {
+      if (!task.start_date) return "";
+      var d = task.start_date instanceof Date ? task.start_date : new Date(task.start_date);
+      return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+    }});
+  }
+  if (shownFields["end_date"]) {
+    columns.push({ name: "end_date", label: "Due", align: "center", width: 100, resize: true, template: function(task) {
+      if (!task.end_date) return "";
+      var d = task.end_date instanceof Date ? task.end_date : new Date(task.end_date);
+      return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+    }});
+  }
+  if (shownFields["duration"]) {
+    columns.push({ name: "duration", label: "Days", align: "center", width: 50 });
+  }
+  if (shownFields["status"]) {
+    columns.push({ name: "status", label: "Status", align: "center", width: 90, template: function(task) {
+      if (!task.status) return "";
+      return task.status.split(" ").map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
+    }});
+  }
+  if (shownFields["assignee"]) {
+    columns.push({ name: "assignee", label: "Assignee", align: "center", width: 100, resize: true, template: function(task) {
+      return task.assignee || "";
+    }});
+  }
+  if (shownFields["priority"]) {
+    columns.push({ name: "priority", label: "Priority", align: "center", width: 80, template: function(task) {
+      return task.priority || "";
+    }});
+  }
+  if (shownFields["progress"]) {
+    columns.push({ name: "progress", label: "Progress", align: "center", width: 70, template: function(task) {
+      return Math.round((task.progress || 0) * 100) + "%";
+    }});
+  }
+  if (shownFields["type"]) {
+    columns.push({ name: "type", label: "Type", align: "center", width: 80, template: function(task) {
+      if (!task.type) return "";
+      return task.type.charAt(0).toUpperCase() + task.type.slice(1);
+    }});
+  }
+
+  gantt.config.columns = columns;
+  gantt.render();
+
+  // Re-inject the "Add a Column" button after render
+  setTimeout(injectAddColumnButton, 50);
+}
+
+function injectAddColumnButton() {
+  // Remove existing button if any
+  var existing = document.querySelector(".add-column-btn");
+  if (existing) existing.remove();
+
+  // Find the first grid header cell (the "Name" cell)
+  var nameCell = document.querySelector(".gantt_grid_head_cell");
+  if (!nameCell) return;
+
+  // Make the cell relative for positioning
+  nameCell.style.position = "relative";
+  nameCell.style.overflow = "visible";
+
+  // Create the button — positioned at the right edge of the Name column
+  var btn = document.createElement("button");
+  btn.className = "add-column-btn";
+  btn.title = "Add a Column";
+  btn.textContent = "+";
+  btn.onclick = function(e) {
+    e.stopPropagation();
+    openFieldsPanel();
+  };
+
+  nameCell.appendChild(btn);
+}
+
+// Inject button after gantt renders
+gantt.attachEvent("onGanttRender", function() {
+  setTimeout(injectAddColumnButton, 50);
+});
+
+// Fallback: also inject on data parse complete
+gantt.attachEvent("onParse", function() {
+  setTimeout(injectAddColumnButton, 100);
+});
+
+// Fallback: inject after initial render too
+setTimeout(injectAddColumnButton, 500);
+
+// Re-inject on grid resize (column drag) — use MutationObserver as fallback
+(function() {
+  var gridEl = document.querySelector(".gantt_grid");
+  if (gridEl) {
+    var observer = new MutationObserver(function() {
+      setTimeout(function() {
+        injectAddColumnButton();
+        injectAddTaskRow();
+      }, 50);
+    });
+    observer.observe(gridEl, { childList: true, subtree: true });
+  }
+  // Also listen for mouseup after potential resize drag
+  document.addEventListener("mouseup", function() {
+    setTimeout(function() {
+      injectAddColumnButton();
+      injectAddTaskRow();
+    }, 100);
+  });
+})();
+
+// --- "+ Add Task" row at the bottom of the grid ---
+function injectAddTaskRow() {
+  // Remove existing if any
+  var existing = document.querySelector(".add-task-row");
+  if (existing) existing.remove();
+
+  if (IS_EMBED) return;
+
+  var gridData = document.querySelector(".gantt_grid_data");
+  if (!gridData) return;
+
+  var row = document.createElement("div");
+  row.className = "add-task-row";
+  row.innerHTML = '<span style="font-size:14px;">+</span> Add Task';
+  row.onclick = function() {
+    showTaskModal(null, 0);
+  };
+  gridData.appendChild(row);
+}
+
+// Inject on render events
+gantt.attachEvent("onGanttRender", function() {
+  setTimeout(injectAddTaskRow, 60);
+  setTimeout(injectAddColumnButton, 60);
+});
+gantt.attachEvent("onParse", function() {
+  setTimeout(injectAddTaskRow, 60);
+});
+setTimeout(injectAddTaskRow, 600);
 
 // --- Preserve user-set type when auto_types would override ---
-// Store original type from DB so auto_types doesn't revert "project" to "task"
 var _storedTypes = {};
 gantt.attachEvent("onTaskLoading", function(task) {
   if (task.type) _storedTypes[task.id] = task.type;
@@ -652,8 +1649,14 @@ gantt.attachEvent("onAfterTaskUpdate", function(id) {
 // --- Init + load ---
 gantt.init("gantt_here");
 
+// Apply saved column configuration
+rebuildGanttColumns();
+
 gantt.load(API_BASE + "/data", function() {
   gantt.showDate(new Date());
+
+  // Inject column button after data renders
+  setTimeout(injectAddColumnButton, 100);
 });
 
 // --- DataProcessor (save edits) ---
