@@ -52,40 +52,143 @@ const SCALES = {
 }
 
 // Custom CSS injected into the page for Gantt styling
+// IMPORTANT: Keep in sync with gantt-app/frontend/project.html styles.
+// See README.md "Style Synchronisation" section.
 const GANTT_CUSTOM_CSS = `
-  .gantt_task_line.gantt_project {
-    background: #2563eb !important;
-    border-color: #2563eb !important;
-    border-radius: 4px;
+  /* --- Grid --- */
+  .gantt_grid {
+    border-right: 1px solid #e2e8f0 !important;
   }
-  .gantt_task_line.gantt_task {
-    background: #10b981 !important;
-    border-color: #10b981 !important;
-    border-radius: 4px;
+  .gantt_grid_head_cell {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid #e2e8f0 !important;
+    overflow: visible !important;
   }
-  .gantt_task_line.milestone_task {
-    background: #f59e0b !important;
-    border-color: #f59e0b !important;
+  .gantt_grid_head_row {
+    background: #fff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  .gantt_row {
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+  .gantt_row:hover {
+    background: #f8fafc !important;
+  }
+  .gantt_tree_content {
+    font-size: 13px !important;
+    color: #1e293b !important;
+  }
+  .gantt_row.gantt_project .gantt_tree_content {
+    font-weight: 700 !important;
+  }
+
+  /* --- Scale (timeline header) --- */
+  .gantt_scale_line {
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  .gantt_scale_cell {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    color: #64748b !important;
+    border-right: 1px solid #f1f5f9 !important;
+  }
+
+  /* --- Task bars --- */
+  .gantt_task_line {
+    border-radius: 4px !important;
   }
   .gantt_task_line .gantt_task_progress {
     background: rgba(0,0,0,0.15);
     border-radius: 4px;
   }
-  .gantt-today-cell {
-    background: rgba(229, 57, 53, 0.08);
-    border-left: 2px solid #e53935;
+
+  /* Status-based bar colors */
+  .gantt_task_line.status-complete {
+    background: #22c55e !important;
+    border-color: #16a34a !important;
   }
-  .gantt_grid_head_cell {
-    font-size: 11px;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
+  .gantt_task_line.status-in-progress {
+    background: #3b82f6 !important;
+    border-color: #2563eb !important;
   }
-  .gantt_tree_content {
-    font-size: 13px;
+  .gantt_task_line.status-planning {
+    background: #a78bfa !important;
+    border-color: #7c3aed !important;
   }
-  .gantt_row.gantt_project .gantt_tree_content {
-    font-weight: 700;
+  .gantt_task_line.status-todo {
+    background: #94a3b8 !important;
+    border-color: #64748b !important;
+  }
+
+  /* Default task (no status) — light blue */
+  .gantt_task_line.gantt_task {
+    background: #93c5fd !important;
+    border-color: #60a5fa !important;
+    border-radius: 4px;
+  }
+
+  /* Project bar — green, thin line */
+  .gantt_task_line.gantt_project {
+    background: #22c55e !important;
+    border-color: #16a34a !important;
+    border-radius: 4px;
+    height: 8px !important;
+    margin-top: 12px;
+  }
+
+  /* Milestone */
+  .gantt_task_line.milestone_task {
+    background: #f59e0b !important;
+    border-color: #f59e0b !important;
+  }
+
+  .gantt_task_cell {
+    border-right: 1px solid #f1f5f9 !important;
+  }
+
+  /* --- Weekend striping — diagonal hatched pattern --- */
+  .weekend-cell {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 3px,
+      rgba(148, 163, 184, 0.08) 3px,
+      rgba(148, 163, 184, 0.08) 6px
+    ) !important;
+    background-color: rgba(241, 245, 249, 0.6) !important;
+  }
+
+  /* --- Today line — dashed pink left border --- */
+  .today-cell {
+    border-left: 2px dashed #e84393 !important;
+  }
+
+  /* Today's date highlighted in scale header */
+  .gantt_scale_cell.scale-today {
+    color: #e84393 !important;
+    font-weight: 700 !important;
+    position: relative;
+  }
+  .gantt_scale_cell.scale-today::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(232, 67, 147, 0.12);
+    z-index: -1;
+  }
+
+  /* Hide default marker (using cell border approach instead) */
+  .gantt_marker {
+    display: none !important;
   }
 
   /* --- Lightbox (task edit popup) --- */
@@ -230,57 +333,64 @@ const GANTT_CUSTOM_CSS = `
     background: #fef2f2 !important;
   }
   .gantt_cal_cover {
-    background: rgba(0, 0, 0, 0.3) !important;
+    background: rgba(0, 0, 0, 0.08) !important;
     opacity: 1 !important;
   }
 
   /* --- Confirm/Alert popup --- */
   .gantt_modal_box {
     font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
-    border-radius: 12px !important;
+    border-radius: 8px !important;
     border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
-    overflow: hidden !important;
-    padding: 24px 28px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.1) !important;
+    overflow: visible !important;
+    padding: 12px 16px !important;
     background: #fff !important;
-    min-width: 400px !important;
+    min-width: 220px !important;
+    max-width: 320px !important;
+    width: auto !important;
   }
   .gantt_popup_title {
     display: none !important;
   }
   .gantt_popup_text {
-    font-size: 14px !important;
+    font-size: 13px !important;
     color: #1e293b !important;
-    padding: 0 0 20px !important;
+    padding: 0 0 12px !important;
     margin: 0 !important;
     border: none !important;
-    text-align: center !important;
+    text-align: left !important;
+    line-height: 1.5 !important;
   }
   .gantt_popup_controls {
     display: flex !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     gap: 8px !important;
     padding: 0 !important;
   }
   .gantt_popup_button {
-    border-radius: 6px !important;
-    padding: 8px 16px !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
+    border-radius: 4px !important;
+    padding: 5px 12px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
     font-family: inherit !important;
-    border: 1px solid #e2e8f0 !important;
+    border: none !important;
     cursor: pointer !important;
     margin: 0 !important;
-    background: #fff !important;
-    color: #1e293b !important;
+    background: transparent !important;
+    color: #64748b !important;
+    transition: all 0.15s !important;
   }
   .gantt_popup_button:hover {
-    background: #f8fafc !important;
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
   }
   .gantt_popup_button.gantt_ok_button {
     background: #dc2626 !important;
     color: #fff !important;
-    border-color: #dc2626 !important;
+    border: none !important;
+    border-radius: 4px !important;
+    padding: 5px 14px !important;
   }
   .gantt_popup_button.gantt_ok_button:hover {
     background: #b91c1c !important;
@@ -366,22 +476,48 @@ export function mountGantt(options) {
     gantt.locale.labels.section_status = 'Status'
     gantt.locale.labels.section_assignee = 'Assignee'
 
-    // Task styling (CSS class per type)
+    // Task styling — status-based CSS classes (synced with project.html)
     gantt.templates.task_class = function(start, end, task) {
-      if (task.type === 'project') return 'gantt_project'
-      if (task.type === 'milestone') return 'milestone_task'
-      return 'gantt_task'
+      var classes = []
+      if (task.type === 'project') classes.push('gantt_project')
+      else if (task.type === 'milestone') classes.push('milestone_task')
+      else classes.push('gantt_task')
+
+      // Status-based coloring
+      if (task.status) {
+        var s = task.status.toLowerCase().replace(/\s+/g, '-')
+        classes.push('status-' + s)
+      }
+      return classes.join(' ')
     }
 
-    // Today marker
+    // Timeline cell styling — weekend striping + today marker (synced with project.html)
     gantt.templates.timeline_cell_class = function (task, date) {
-      const today = new Date()
+      var classes = []
+      var day = date.getDay()
+      if (day === 0 || day === 6) {
+        classes.push('weekend-cell')
+      }
+      var today = new Date()
       if (
         date.getFullYear() === today.getFullYear() &&
         date.getMonth() === today.getMonth() &&
         date.getDate() === today.getDate()
       ) {
-        return 'gantt-today-cell'
+        classes.push('today-cell')
+      }
+      return classes.join(' ')
+    }
+
+    // Highlight today in scale header
+    gantt.templates.scale_cell_class = function (date) {
+      var today = new Date()
+      if (
+        date.getFullYear() === today.getFullYear() &&
+        date.getMonth() === today.getMonth() &&
+        date.getDate() === today.getDate()
+      ) {
+        return 'scale-today'
       }
       return ''
     }

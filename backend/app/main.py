@@ -1,31 +1,26 @@
-"""FastAPI application entry point — Multi-project Gantt Platform."""
+"""FastAPI application entry point — Gantt API (Plane-powered)."""
 
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
-from app import database
 from app.config import CORS_ORIGINS
-from app.routers import links, tasks, projects, csv_import
-
-STATIC_DIR = Path("static")
+from app.routers import plane_gantt
+from app.services import cache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await database.connect()
+    await cache.connect()
     yield
-    await database.disconnect()
+    await cache.disconnect()
 
 
 app = FastAPI(
-    title="Gantt Platform",
-    description="Multi-project Gantt chart platform. Create projects, import CSV, embed anywhere.",
-    version="2.0.0",
+    title="Gantt API",
+    description="Gantt chart API powered by Plane.so. Serves dhtmlxGantt-compatible data for projects, issues, cycles, and modules.",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -36,46 +31,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API routers
-app.include_router(projects.router)
-app.include_router(csv_import.router)
-app.include_router(tasks.router)
-app.include_router(links.router)
+# API router (Plane-sourced)
+app.include_router(plane_gantt.router)
 
 
-@app.get("/api/health")
-async def health():
-    pool = database.get_pool()
-    async with pool.acquire() as conn:
-        count = await conn.fetchval("SELECT COUNT(*) FROM gantt_projects")
-    return {"status": "ok", "projects": count, "version": "2.0.0"}
-
-
-# --- Page routes ---
-
-@app.get("/admin")
-async def admin_page():
-    """Admin panel — create, configure, import projects."""
-    return FileResponse(STATIC_DIR / "admin.html")
-
-
-@app.get("/project/{slug}")
-async def project_page(slug: str):
-    """Full Gantt editor for a project."""
-    return FileResponse(STATIC_DIR / "project.html")
-
-
-@app.get("/embed/{slug}")
-async def embed_page(slug: str):
-    """Read-only embeddable Gantt view."""
-    return FileResponse(STATIC_DIR / "project.html")
-
-
-# Serve remaining static assets (CSS, JS, images)
-app.mount("/static", StaticFiles(directory="static"), name="static-assets")
-
-
-# Root landing page
 @app.get("/")
-async def landing():
-    return FileResponse(STATIC_DIR / "index.html")
+async def root():
+    return {"service": "gantt-api", "engine": "plane", "version": "3.0.0"}
