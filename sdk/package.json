@@ -1,0 +1,50 @@
+{
+  "name": "@mcmc/gantt-chart",
+  "version": "1.0.3",
+  "description": "Embeddable Gantt chart component — Web Component + Vue 3 wrapper",
+  "type": "module",
+  "main": "dist/gantt-chart.js",
+  "module": "dist/gantt-chart.js",
+  "exports": {
+    ".": {
+      "import": "./dist/gantt-chart.js"
+    },
+    "./element": "./dist/gantt-element.js",
+    "./vue": "./dist/gantt-vue.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "registry": "https://devgithub.mcmc.gov.my/_registry/npm/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://devgithub.mcmc.gov.my/mcmc/gantt-app.git",
+    "directory": "sdk"
+  },
+  "dependencies": {
+    "dhtmlx-gantt": "^8.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.4.0",
+    "vue": "^3.5.0"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
+  "keywords": ["gantt", "chart", "web-component", "vue", "embed"],
+  "license": "MIT"
+}

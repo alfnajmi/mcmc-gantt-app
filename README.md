@@ -1,193 +1,166 @@
-# Gantt App (DHTMLX + FastAPI + Postgres)
+# Gantt API
 
-An editable Gantt chart for PERSADA project planning. Tasks are stored in an
-external PostgreSQL database (`superset_analytics_db`) shared with Superset for
-reporting. The chart is embedded in the project website via iframe.
-
----
+Lightweight API that serves dhtmlxGantt-compatible data from **Plane.so**. No database required — Plane is the single source of truth for all project/task data.
 
 ## Architecture
 
 ```
-┌────────────────────────┐       ┌──────────────────────────────┐
-│  Project Website       │       │  Superset                    │
-│  (persada-stg)         │       │  (analytics-stg)             │
-│                        │       │                              │
-│  <iframe src="gantt"/> │       │  Charts on gantt_tasks table │
-└────────────┬───────────┘       └──────────────┬───────────────┘
-             │                                   │
-             ▼                                   ▼
-┌────────────────────────────────────────────────────────────────┐
-│  gantt-app container (FastAPI + static frontend)  :8200        │
-└────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  External PostgreSQL (192.168.71.145)                           │
-│  Database: superset_analytics_db                               │
-│  Tables:   gantt_tasks (98 rows), gantt_links                  │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────┐         ┌─────────────────┐         ┌──────────────┐
+│  persada-web    │         │  gantt-api       │         │  Plane.so    │
+│  (Vue 3 + SDK) │◄──API──►│  (FastAPI)       │◄──API──►│  (self-host) │
+│  dhtmlxGantt    │         │  No database     │         │              │
+└─────────────────┘         └─────────────────┘         └──────────────┘
 ```
 
-**Single source of truth:** `gantt_tasks` and `gantt_links` tables in the
-external Postgres. All edits from the Gantt UI write directly here.
+- **Plane** → admin portal (create projects, issues, modules, set dates)
+- **Gantt API** → transforms Plane data into dhtmlxGantt format
+- **persada-web** → renders the Gantt chart with the `@mcmc/gantt-chart` SDK
 
----
-
-## Repository Structure
-
-```
-gantt-app/
-├── docker-compose.yml          # Production/staging (external DB)
-├── .env.example                # Environment variable template
-├── .gitignore
-├── db/
-│   ├── init.sql                # Idempotent schema (gantt_tasks, gantt_links)
-│   ├── migrate_from_persada.sql  # One-time migration reference (ALREADY EXECUTED)
-│   └── migrations/
-│       └── 001_init_sort_order.sql  # Fix sort_order values (ALREADY EXECUTED)
-├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/
-│       ├── config.py           # Env-driven config (fails fast if DATABASE_URL unset)
-│       ├── database.py         # asyncpg connection pool
-│       ├── main.py             # FastAPI entry point
-│       └── routers/
-│           ├── tasks.py        # /api/data, /api/task CRUD, /api/reorder
-│           └── links.py        # /api/link CRUD
-└── frontend/
-    └── index.html              # DHTMLX Gantt (month view, status field, zoom controls)
-```
-
----
-
-## Staging Deployment
-
-The app runs on `mcmcdisddevapp01` alongside other services.
+## Quick start
 
 ```bash
-# 1. Clone (first time)
-cd ~/disd/git
-git clone https://devgithub.mcmc.gov.my/mcmc/gantt-app.git
-cd gantt-app
+cd backend
 
-# 2. Create .env
-cp .env.example .env
-# Edit .env:
-#   DATABASE_URL=postgresql://superset_analytics:PASSWORD@192.168.71.145:5432/superset_analytics_db
-#   CORS_ORIGINS=https://persada-stg.mcmc.gov.my
+# Create virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-# 3. Build and start
-docker compose up --build -d
+# Configure
+cp ../.env.example ../.env
+# Edit ../.env with your Plane credentials
 
-# 4. Verify
-curl -f http://localhost:8200/api/data | head -c 200
-docker compose ps
+# Run
+export $(grep -v '^#' ../.env | grep -v '^\s*$' | xargs)
+uvicorn app.main:app --reload --port 8200
 ```
 
-The app is available at `http://<server-ip>:8200`.
-
-### Updating
-
-```bash
-cd ~/disd/git/gantt-app
-git pull
-docker compose up --build -d
-```
-
----
-
-## Environment Variables
+## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | Full PostgreSQL connection string |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins (empty = block all) |
-| `DB_POOL_MIN` | No | Min pool size (default: 1) |
-| `DB_POOL_MAX` | No | Max pool size (default: 10) |
+| `PLANE_BASE_URL` | Yes | Plane instance URL (e.g., `https://plane-digd.mcmc.gov.my`) |
+| `PLANE_API_TOKEN` | Yes | Personal Access Token from Plane |
+| `PLANE_WORKSPACE_SLUG` | Yes | Workspace slug from Plane URL |
+| `CORS_ORIGINS` | No | Comma-separated allowed origins |
+| `REDIS_URL` | No | Redis URL for caching (optional) |
+| `CACHE_TTL_SECONDS` | No | Cache TTL in seconds (default: 300) |
+| `LOG_LEVEL` | No | Logging level (default: INFO) |
 
-If `DATABASE_URL` is not set, the app will refuse to start.
+## API endpoints
 
----
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check + Plane connectivity |
+| GET | `/api/projects` | List all Plane projects |
+| GET | `/api/projects/{id}` | Get project metadata |
+| GET | `/api/projects/{id}/data` | Gantt chart data (tasks + links) |
+| PUT | `/api/projects/{id}/task/{tid}` | Update task dates (DataProcessor) |
+| PATCH | `/api/projects/{id}/issues/{iid}/dates` | Update issue dates |
+| POST | `/api/projects/{id}/reorder` | Persist sort order changes |
+| POST | `/api/cache/invalidate` | Flush cached data |
 
-## Data Migration
+The `/data` endpoint accepts either a UUID or project identifier (e.g., `persada`, `NASP`).
 
-The production data was migrated from `persada_gantt_chart` (a CSV uploaded to
-Superset) into `gantt_tasks` using `db/migrate_from_persada.sql`. This script
-has already been executed and must not be re-run against production.
+Query parameters for `/data`:
+- `include_cycles=true` — show cycles as group bars
+- `include_modules=true` — show modules as group bars
+- `include_relations=true` — fetch dependency links
+- `bypass_cache=false` — skip Redis cache
 
-Current production data: 6 workstream projects, 78 tasks, 14 milestones.
+## SDK integration
 
-**WARNING:** Never re-run the CSV import or migration script against production.
-The `gantt_tasks` table is the live source of truth — any re-import will
-destroy manual edits made through the Gantt chart UI.
+The `@mcmc/gantt-chart` SDK allows any web portal to embed a Gantt chart that reads from this API. The SDK handles dhtmlxGantt loading, rendering, and DataProcessor communication.
 
----
-
-## Database Migrations
-
-Migrations live in `db/migrations/` as numbered SQL files. Run them with:
-
-```bash
-psql -h 192.168.71.145 -U superset_analytics -d superset_analytics_db -f db/migrations/001_init_sort_order.sql
-```
-
-| Migration | Description | Status |
-|-----------|-------------|--------|
-| `001_init_sort_order.sql` | Set sequential `sort_order` so row drag-reorder persists | Executed 2026-07-12 |
-
-### Running a new migration
+### Installation
 
 ```bash
-# From the server (or anywhere with psql access to the DB)
-psql -h 192.168.71.145 -U superset_analytics -d superset_analytics_db -f db/migrations/<NNN>_description.sql
+npm install @mcmc/gantt-chart
 ```
 
-After running, mark it as executed in the file header and commit.
+Registry setup (`.npmrc`):
+```
+@mcmc:registry=https://devgithub.mcmc.gov.my/_registry/npm/
+//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}
+```
 
----
+### Option 1: Vue 3 component
 
-## Production Checklist
+```vue
+<script setup>
+import { GanttChart } from '@mcmc/gantt-chart/vue'
+</script>
 
-- [x] External Postgres with dedicated role (`superset_analytics`) having write
-      access limited to `gantt_tasks` and `gantt_links`
-- [x] Data migrated from persada_gantt_chart (98 rows verified)
-- [ ] Restrict `CORS_ORIGINS` to the project website origin only
-- [ ] HTTPS via reverse proxy (nginx on host)
-- [ ] Authentication in front of the app (SSO at reverse proxy level or
-      session token validation in FastAPI middleware)
-- [ ] Scheduled `pg_dump` backups of `superset_analytics_db` including gantt tables
-- [ ] Self-host DHTMLX library instead of CDN (`npm install dhtmlx-gantt`)
-- [ ] Rate limiting on write endpoints
+<template>
+  <GanttChart
+    project="persada"
+    api-base="https://gantt.mcmc.gov.my"
+    :editable="true"
+    scale="week"
+    height="80vh"
+    @task-click="handleClick"
+    @task-change="handleChange"
+  />
+</template>
+```
 
----
-
-## Embedding in the Project Website
+### Option 2: Web Component (any framework or plain HTML)
 
 ```html
-<iframe
-  src="https://gantt.mycompany.com"
-  style="width:100%; height:80vh; border:0;"
-></iframe>
+<mcmc-gantt
+  project="persada"
+  api="https://gantt.mcmc.gov.my"
+  editable
+  height="80vh"
+></mcmc-gantt>
+<script src="https://gantt.mcmc.gov.my/sdk/gantt-element.js" type="module"></script>
 ```
 
-Ensure the Gantt app's CORS allows the website origin, and the reverse proxy
-sets appropriate `X-Frame-Options` / CSP `frame-ancestors` headers.
+### Option 3: Imperative API
 
----
+```js
+import { mountGantt } from '@mcmc/gantt-chart'
 
-## Superset Integration
+const controller = mountGantt({
+  container: document.getElementById('gantt'),
+  project: 'persada',
+  apiBase: 'https://gantt.mcmc.gov.my',
+  editable: true,
+  scale: 'month',
+  onTaskClick: (task) => console.log(task),
+  onTaskChange: (task) => console.log('updated', task),
+})
 
-Superset connects to the same `superset_analytics_db` database and can build
-charts on `gantt_tasks` (tasks by workstream, progress heatmap, overdue tasks,
-milestones timeline). Edits in the Gantt chart appear in Superset on dashboard
-refresh.
+// Later: controller.destroy()
+```
 
----
+### Props / Attributes
 
-## License Note
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `project` | string | — | Project UUID or identifier (e.g., `persada`, `NASP`) |
+| `api-base` | string | `''` | Gantt API base URL |
+| `editable` | boolean | `false` | Allow drag-to-edit (dates sync back to Plane) |
+| `scale` | string | `'month'` | Initial zoom: `day`, `week`, `month`, `year` |
+| `height` | string | `'600px'` | Container height |
 
-DHTMLX Gantt Standard edition is GPL v2 — free for internal company use.
-The Pro edition (paid) adds auto-scheduling, critical path, resource load,
-and undo/redo.
+### SDK development
+
+The SDK source lives in `sdk/`. To build and publish:
+
+```bash
+cd sdk
+npm install
+npm run build       # outputs to sdk/dist/
+npm publish         # publishes to @mcmc registry
+```
+
+## Caching
+
+If `REDIS_URL` is set, API responses are cached to reduce Plane API load:
+- Project list: cached for `CACHE_TTL_SECONDS`
+- Project data: cached per project + query params
+- Cache is auto-invalidated on write operations (date changes, reorder)
+- Manual flush: `POST /api/cache/invalidate`
+
+If Redis is unavailable, the API works without caching (graceful degradation).

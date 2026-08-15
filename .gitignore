@@ -21,4 +21,5 @@ venv/
 .DS_Store
 
 # Generated at Docker build time (frontend copied into backend/static/)
-backend/static/
+backend/static
+node_modules

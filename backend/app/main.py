@@ -1,35 +1,40 @@
-"""FastAPI application entry point."""
+"""FastAPI application entry point — Gantt API (Plane-powered)."""
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
-from app import database
 from app.config import CORS_ORIGINS
-from app.routers import links, tasks
+from app.routers import plane_gantt
+from app.services import cache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await database.connect()
+    await cache.connect()
     yield
-    await database.disconnect()
+    await cache.disconnect()
 
 
-app = FastAPI(title="Gantt API", lifespan=lifespan)
+app = FastAPI(
+    title="Gantt API",
+    description="Gantt chart API powered by Plane.so. Serves dhtmlxGantt-compatible data for projects, issues, cycles, and modules.",
+    version="3.0.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=CORS_ORIGINS or ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register routers
-app.include_router(tasks.router)
-app.include_router(links.router)
+# API router (Plane-sourced)
+app.include_router(plane_gantt.router)
 
-# Serve the frontend (must be last — catches all unmatched paths)
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
+@app.get("/")
+async def root():
+    return {"service": "gantt-api", "engine": "plane", "version": "3.0.0"}

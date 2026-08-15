@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: gantt
+      POSTGRES_PASSWORD: gantt
+      POSTGRES_DB: gantt_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./db/migrations/002_multi_project.sql:/docker-entrypoint-initdb.d/02_multi_project.sql
+      - gantt_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gantt"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  gantt_data:

@@ -1,17 +1,34 @@
 services:
-  gantt:
+  gantt-api:
     build:
       context: .
       dockerfile: backend/Dockerfile
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
     ports:
       - "8200:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/data || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 10s
       retries: 3
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
