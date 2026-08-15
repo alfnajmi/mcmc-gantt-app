@@ -67,7 +67,16 @@ async def _resolve_project_id(svc: PlaneService, project_id: str) -> str:
 
 @router.get("/health")
 async def health():
-    """Health check — verifies Plane API connectivity."""
+    """Health check — verifies service is running and optionally checks Plane connectivity."""
+    if not PLANE_BASE_URL:
+        return {
+            "status": "ok",
+            "engine": "plane",
+            "version": "3.0.0",
+            "plane": "not configured",
+            "cache": cache.is_available(),
+        }
+
     svc = _get_plane_service()
     try:
         projects = await svc.list_projects()
@@ -79,7 +88,9 @@ async def health():
             "cache": cache.is_available(),
         }
     except PlaneAPIError as e:
-        return {"status": "degraded", "error": e.detail, "cache": cache.is_available()}
+        return {"status": "ok", "engine": "plane", "version": "3.0.0", "plane": "unreachable", "error": e.detail, "cache": cache.is_available()}
+    except Exception as e:
+        return {"status": "ok", "engine": "plane", "version": "3.0.0", "plane": "error", "error": str(e), "cache": cache.is_available()}
     finally:
         await svc.close()
 
