@@ -3,18 +3,22 @@
  * <GanttChart> — Vue 3 wrapper around the core Gantt engine.
  *
  * Usage:
- *   <GanttChart project="persada-phase-1" :editable="true" @task-click="handle" />
+ *   <GanttChart project="persada" :editable="true" plane-url="https://plane.example.com" />
  *
  * Props:
- *   project  — project slug (required)
- *   apiBase  — API base URL (default: '')
- *   editable — allow editing (default: false)
- *   scale    — initial zoom: day|week|month (default: month)
- *   height   — container height (default: '600px')
+ *   project        — project slug or UUID (required)
+ *   apiBase        — API base URL (default: '')
+ *   editable       — allow editing (default: false)
+ *   scale          — initial zoom: day|week|month|year (default: month)
+ *   height         — container height (default: '600px')
+ *   planeUrl       — Plane instance URL (enables "View in Plane" popup button)
+ *   workspaceSlug  — Plane workspace slug
+ *   projectId      — Plane project UUID (for Plane links)
+ *   showPopup      — show task detail popup on bar click (default: true)
  *
  * Events:
- *   task-click  — emitted with task object when a task is clicked
- *   task-change — emitted with task object after update
+ *   task-click  — emitted with task object when a task bar is clicked
+ *   task-change — emitted with task object after update (drag/resize)
  */
 
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
@@ -26,6 +30,10 @@ const props = defineProps({
   editable: { type: Boolean, default: false },
   scale: { type: String, default: 'month' },
   height: { type: String, default: '600px' },
+  planeUrl: { type: String, default: '' },
+  workspaceSlug: { type: String, default: '' },
+  projectId: { type: String, default: '' },
+  showPopup: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['task-click', 'task-change'])
@@ -62,6 +70,10 @@ function initGantt() {
     apiBase: props.apiBase,
     editable: props.editable,
     scale: props.scale,
+    planeUrl: props.planeUrl,
+    workspaceSlug: props.workspaceSlug,
+    projectId: props.projectId,
+    showPopup: props.showPopup,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
   })
@@ -76,9 +88,5 @@ function initGantt() {
 .gantt-container {
   width: 100%;
   position: relative;
-}
-:deep(.gantt-today-cell) {
-  background: rgba(229, 57, 53, 0.08);
-  border-left: 2px solid #e53935;
 }
 </style>
