@@ -10,6 +10,7 @@ export default defineConfig({
         'gantt-chart': resolve(__dirname, 'src/index.js'),
         'gantt-element': resolve(__dirname, 'src/GanttElement.js'),
         'gantt-vue': resolve(__dirname, 'src/GanttChart.vue'),
+        'gantt-view': resolve(__dirname, 'src/GanttView.vue'),
       },
       formats: ['es'],
       name: 'McmcGantt',
