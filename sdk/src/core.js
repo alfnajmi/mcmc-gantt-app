@@ -395,6 +395,140 @@ const GANTT_CUSTOM_CSS = `
   .gantt_popup_button.gantt_ok_button:hover {
     background: #b91c1c !important;
   }
+
+  /* --- Task Detail Popup --- */
+  .gantt-task-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+  }
+  .gantt-task-popup {
+    position: fixed;
+    z-index: 9999;
+    width: 300px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+    padding: 14px 16px;
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    animation: gantt-popup-in 0.15s ease;
+  }
+  @keyframes gantt-popup-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .gantt-task-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .gantt-task-popup-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gantt-task-popup-badge {
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .gantt-task-popup-badge.badge-task {
+    background: #dbeafe;
+    color: #2563eb;
+  }
+  .gantt-task-popup-badge.badge-project {
+    background: #ede9fe;
+    color: #7c3aed;
+  }
+  .gantt-task-popup-id {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+  }
+  .gantt-task-popup-close {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .gantt-task-popup-close:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .gantt-task-popup-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 12px;
+    line-height: 1.4;
+  }
+  .gantt-task-popup-props {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+  }
+  .gantt-task-popup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .gantt-task-popup-label {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+  }
+  .gantt-task-popup-value {
+    font-size: 11px;
+    color: #1e293b;
+    font-weight: 500;
+  }
+  .gantt-task-popup-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .gantt-task-popup-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .gantt-task-popup-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+  .gantt-task-popup-btn.btn-plane {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: #fff;
+  }
+  .gantt-task-popup-btn.btn-plane:hover {
+    background: #6d28d9;
+  }
 `
 
 /**
@@ -406,6 +540,10 @@ const GANTT_CUSTOM_CSS = `
  * @param {string} [options.apiBase=''] - Base URL of the Gantt API
  * @param {boolean} [options.editable=false] - Allow editing
  * @param {string} [options.scale='month'] - Initial scale: day|week|month|year
+ * @param {string} [options.planeUrl=''] - Plane instance URL (enables "View in Plane" popup)
+ * @param {string} [options.workspaceSlug=''] - Plane workspace slug
+ * @param {string} [options.projectId=''] - Plane project UUID (for Plane links)
+ * @param {boolean} [options.showPopup=true] - Show task detail popup on bar click
  * @param {Function} [options.onTaskClick] - Callback when task is clicked
  * @param {Function} [options.onTaskChange] - Callback when task is updated
  * @returns {Object} Controller with destroy() method
@@ -417,6 +555,10 @@ export function mountGantt(options) {
     apiBase = '',
     editable = false,
     scale = 'month',
+    planeUrl = '',
+    workspaceSlug = '',
+    projectId = '',
+    showPopup = true,
     onTaskClick = null,
     onTaskChange = null,
   } = options
@@ -533,6 +675,118 @@ export function mountGantt(options) {
     if (onTaskChange) {
       gantt.attachEvent('onAfterTaskUpdate', (id) => {
         onTaskChange(gantt.getTask(id))
+      })
+    }
+
+    // Built-in task detail popup (on bar click in timeline area)
+    if (showPopup) {
+      let popupEl = null
+      let overlayEl = null
+      let lastClickX = 0
+      let lastClickY = 0
+
+      container.addEventListener('mousemove', (e) => {
+        lastClickX = e.clientX
+        lastClickY = e.clientY
+      })
+
+      function closePopup() {
+        if (popupEl) { popupEl.remove(); popupEl = null }
+        if (overlayEl) { overlayEl.remove(); overlayEl = null }
+      }
+
+      function showTaskPopup(task) {
+        closePopup()
+
+        // Don't show for cycles
+        if (task.plane_type === 'cycle') return
+
+        const isModule = task.plane_type === 'module' || task.type === 'project'
+        const badge = isModule ? 'Project' : 'Task'
+        const badgeClass = isModule ? 'badge-project' : 'badge-task'
+        const seqId = task.sequence_id ? (project.toUpperCase() + '-' + task.sequence_id) : ''
+
+        const startStr = formatDate(task.start_date)
+        const endStr = formatDate(task.end_date)
+        const durationDays = task.duration || 1
+        const status = capitalizeStatus(task.status) || (isModule ? 'Planned' : '—')
+        const taskName = (task.text || '').replace(/^[\u{1F4E6}\u{1F504}]\s*/u, '')
+
+        let propsHtml = ''
+        propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">Status</span><span class="gantt-task-popup-value">' + status + '</span></div>'
+        if (task.assignee) {
+          propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">' + (isModule ? 'Lead' : 'Assignee') + '</span><span class="gantt-task-popup-value">' + task.assignee + '</span></div>'
+        }
+        if (task.priority) {
+          propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">Priority</span><span class="gantt-task-popup-value">' + task.priority + '</span></div>'
+        }
+        propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">Start</span><span class="gantt-task-popup-value">' + startStr + '</span></div>'
+        propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">' + (isModule ? 'Target' : 'Due') + '</span><span class="gantt-task-popup-value">' + endStr + '</span></div>'
+        propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">Duration</span><span class="gantt-task-popup-value">' + durationDays + ' day' + (durationDays !== 1 ? 's' : '') + '</span></div>'
+
+        // Build Plane link
+        let planeLink = ''
+        if (planeUrl && workspaceSlug && projectId && task.plane_id) {
+          const planeHref = isModule
+            ? planeUrl + '/' + workspaceSlug + '/projects/' + projectId + '/modules/' + task.plane_id
+            : planeUrl + '/' + workspaceSlug + '/projects/' + projectId + '/issues/' + task.plane_id
+          planeLink = '<a href="' + planeHref + '" target="_blank" class="gantt-task-popup-btn btn-plane">View in Plane</a>'
+        }
+
+        // Create popup
+        popupEl = document.createElement('div')
+        popupEl.className = 'gantt-task-popup'
+        popupEl.innerHTML = '<div class="gantt-task-popup-header">'
+          + '<div class="gantt-task-popup-header-left">'
+          + '<span class="gantt-task-popup-badge ' + badgeClass + '">' + badge + '</span>'
+          + (seqId ? '<span class="gantt-task-popup-id">' + seqId + '</span>' : '')
+          + '</div>'
+          + '<button class="gantt-task-popup-close">&times;</button>'
+          + '</div>'
+          + '<div class="gantt-task-popup-title">' + taskName + '</div>'
+          + '<div class="gantt-task-popup-props">' + propsHtml + '</div>'
+          + '<div class="gantt-task-popup-actions">'
+          + planeLink
+          + '<button class="gantt-task-popup-btn btn-close">Close</button>'
+          + '</div>'
+
+        // Position
+        const viewW = window.innerWidth
+        const viewH = window.innerHeight
+        let left = Math.min(lastClickX + 10, viewW - 320)
+        let top = Math.min(lastClickY + 10, viewH - 300)
+        popupEl.style.left = left + 'px'
+        popupEl.style.top = top + 'px'
+
+        // Overlay
+        overlayEl = document.createElement('div')
+        overlayEl.className = 'gantt-task-popup-overlay'
+        overlayEl.addEventListener('click', closePopup)
+
+        document.body.appendChild(overlayEl)
+        document.body.appendChild(popupEl)
+
+        // Close handlers
+        popupEl.querySelector('.gantt-task-popup-close').addEventListener('click', closePopup)
+        popupEl.querySelector('.btn-close').addEventListener('click', closePopup)
+      }
+
+      gantt.attachEvent('onTaskClick', (id) => {
+        const task = gantt.getTask(id)
+        // Only show popup for clicks in the timeline area (not grid)
+        const gridWidth = gantt.config.grid_width || gantt.$grid_data?.offsetWidth || 300
+        const ganttPos = container.getBoundingClientRect()
+        const relX = lastClickX - ganttPos.left
+        if (relX > gridWidth) {
+          showTaskPopup(task)
+        }
+        if (onTaskClick) onTaskClick(task)
+        return true
+      })
+    } else if (onTaskClick) {
+      gantt.attachEvent('onTaskClick', (id) => {
+        onTaskClick(gantt.getTask(id))
+        return true
       })
     }
 
