@@ -16,6 +16,38 @@ Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
 - Milestone markers
 - Editable mode (drag to resize/move bars, DataProcessor syncs to API)
 
+## Quick start (for portal teams)
+
+You don't need to set up a backend or manage environment variables. The Gantt API is already deployed and connected to Plane. Just install the SDK and point to it:
+
+```vue
+<script setup>
+import GanttView from '@mcmc/gantt-chart/view'
+</script>
+
+<template>
+  <GanttView
+    project="persada"
+    api-base="https://gantt.mcmc.gov.my"
+    plane-url="https://plane-digd.mcmc.gov.my"
+    workspace-slug="disd"
+    :show-project-selector="true"
+    :editable="true"
+    height="80vh"
+  />
+</template>
+```
+
+That's it. No `.env` files, no backend setup, no database. The component handles everything.
+
+**What you need from the DISD team:**
+| Info | Example | Who provides it |
+|------|---------|-----------------|
+| Gantt API URL | `https://gantt.mcmc.gov.my` | DISD infra team |
+| Plane URL | `https://plane-digd.mcmc.gov.my` | DISD infra team |
+| Workspace slug | `disd` | Look at your Plane URL |
+| Project ID | UUID from Plane | Or use identifier like `persada` |
+
 ## Installation
 
 Add `.npmrc` to scope `@mcmc` packages to the private registry:
@@ -32,6 +64,48 @@ npm install @mcmc/gantt-chart
 ```
 
 ## Three ways to use
+
+### Recommended: GanttView (full experience)
+
+```vue
+<script setup>
+import GanttView from '@mcmc/gantt-chart/view'
+</script>
+
+<template>
+  <GanttView
+    project="persada"
+    api-base="https://gantt.mcmc.gov.my"
+    plane-url="https://plane-digd.mcmc.gov.my"
+    workspace-slug="disd"
+    :show-project-selector="true"
+    :editable="true"
+    height="80vh"
+  />
+</template>
+```
+
+Includes toolbar, filter, fields panel, edit sidebar, and task popup — zero additional code.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `project` | string | — | Project UUID or identifier |
+| `apiBase` | string | — | Gantt API base URL |
+| `editable` | boolean | `true` | Allow editing |
+| `scale` | string | `'week'` | Initial zoom |
+| `height` | string | `'100%'` | Container height |
+| `planeUrl` | string | `''` | Plane URL (for "Open in Plane") |
+| `workspaceSlug` | string | `''` | Plane workspace slug |
+| `projectId` | string | `''` | Plane project UUID |
+| `showToolbar` | boolean | `true` | Show/hide toolbar |
+| `showFilter` | boolean | `true` | Show/hide filter button |
+| `showFields` | boolean | `true` | Show/hide fields button |
+| `showProjectSelector` | boolean | `false` | Show project dropdown |
+| `showClosed` | boolean | `true` | Initial closed toggle state |
+
+### Alternative: GanttChart (bare renderer)
+
+For portals that want full control over the toolbar and surrounding UI:
 
 ### 1. Web Component (any framework or plain HTML)
 
