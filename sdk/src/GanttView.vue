@@ -39,9 +39,10 @@ const props = defineProps({
   showFilter: { type: Boolean, default: true },
   showFields: { type: Boolean, default: true },
   showClosed: { type: Boolean, default: true },
+  showProjectSelector: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['task-click', 'task-change'])
+const emit = defineEmits(['task-click', 'task-change', 'project-change'])
 
 const containerRef = ref(null)
 let controller = null
@@ -64,6 +65,57 @@ function setScale(value) {
 
 // --- Closed toggle ---
 const closedVisible = ref(props.showClosed)
+
+// --- Project selector ---
+const projectList = ref([])
+const selectedProject = ref(null)
+const showProjectDropdown = ref(false)
+const projectLoading = ref(false)
+
+async function fetchProjects() {
+  if (!props.showProjectSelector) return
+  projectLoading.value = true
+  try {
+    const resp = await fetch(`${props.apiBase}/api/projects`)
+    if (resp.ok) {
+      projectList.value = await resp.json()
+      // Auto-select by prop or first
+      const match = projectList.value.find(p => p.id === props.project || p.slug === props.project || p.identifier?.toLowerCase() === props.project?.toLowerCase())
+      selectedProject.value = match || projectList.value[0] || null
+    }
+  } catch (e) { console.error('Failed to fetch projects:', e) }
+  finally { projectLoading.value = false }
+}
+
+function selectProject(proj) {
+  selectedProject.value = proj
+  showProjectDropdown.value = false
+  emit('project-change', proj)
+  // Reload gantt with new project
+  if (controller) controller.destroy()
+  nextTick(() => initGanttWithProject(proj.id))
+}
+
+function initGanttWithProject(projectId) {
+  if (!containerRef.value) return
+  controller = mountGantt({
+    container: containerRef.value,
+    project: projectId,
+    apiBase: props.apiBase,
+    editable: props.editable,
+    scale: currentScale.value,
+    planeUrl: props.planeUrl,
+    workspaceSlug: props.workspaceSlug,
+    projectId: projectId,
+    showPopup: true,
+    onTaskClick: (task) => emit('task-click', task),
+    onTaskChange: (task) => emit('task-change', task),
+  })
+  const interval = setInterval(() => {
+    if (window.gantt && window.gantt.config) { clearInterval(interval); onGanttReady() }
+  }, 200)
+  setTimeout(() => clearInterval(interval), 10000)
+}
 
 watch(closedVisible, () => applyFilters())
 
@@ -121,7 +173,10 @@ function toggleField(key) {
 }
 
 // --- Gantt lifecycle ---
-onMounted(() => initGantt())
+onMounted(() => {
+  fetchProjects()
+  initGantt()
+})
 
 watch(() => props.project, () => {
   if (controller) controller.destroy()
@@ -235,6 +290,24 @@ function handleAutoFit() { if (window.gantt) { window.gantt.config.fit_tasks = t
     <!-- Toolbar -->
     <div v-if="showToolbar" class="gv-toolbar">
       <div class="gv-toolbar-left">
+        <!-- Project selector -->
+        <div v-if="showProjectSelector" class="gv-dropdown-wrap">
+          <button class="gv-btn gv-project-btn" @click="showProjectDropdown = !showProjectDropdown">
+            {{ selectedProject?.title || selectedProject?.identifier || 'Select project' }} ▾
+          </button>
+          <div v-if="showProjectDropdown" class="gv-dropdown-menu gv-project-menu">
+            <button v-if="projectLoading" class="gv-dropdown-item" disabled>Loading...</button>
+            <button
+              v-for="p in projectList"
+              :key="p.id"
+              class="gv-dropdown-item"
+              :class="{ active: selectedProject?.id === p.id }"
+              @click="selectProject(p)"
+            >
+              <span class="gv-project-id">{{ p.identifier }}</span> {{ p.title }}
+            </button>
+          </div>
+        </div>
         <button class="gv-btn" @click="handleToday">Today</button>
         <div class="gv-dropdown-wrap">
           <button class="gv-btn" @click="showScaleDropdown = !showScaleDropdown">
@@ -347,6 +420,9 @@ function handleAutoFit() { if (window.gantt) { window.gantt.config.fit_tasks = t
 }
 .gv-btn:hover { background: #f1f5f9; }
 .gv-btn.active { background: #eff6ff; color: #1d4ed8; }
+.gv-project-btn { font-weight: 600; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 12px; }
+.gv-project-menu { min-width: 220px; max-height: 260px; overflow-y: auto; }
+.gv-project-id { font-size: 10px; font-weight: 700; color: #94a3b8; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; margin-right: 4px; }
 .gv-badge {
   display: inline-flex;
   align-items: center;
