@@ -3,6 +3,8 @@
  * Used by both the Web Component and Vue wrapper.
  */
 
+import { createEditSidebar } from './sidebar.js'
+
 const DATE_FMT = '%Y-%m-%d %H:%i'
 
 function formatDate(d) {
@@ -804,6 +806,25 @@ export function mountGantt(options) {
       }
     })
 
+    // Edit sidebar — replaces the default lightbox
+    let sidebar = null
+    if (editable) {
+      sidebar = createEditSidebar({
+        container,
+        apiBase,
+        project,
+        planeUrl,
+        workspaceSlug,
+        projectId,
+      })
+
+      // Override lightbox to open our sidebar instead
+      gantt.showLightbox = function(id) {
+        const task = gantt.getTask(id)
+        sidebar.open(task)
+      }
+    }
+
     // Init
     const apiUrl = `${apiBase}/api/projects/${project}`
     gantt.init(container)
@@ -841,6 +862,7 @@ export function mountGantt(options) {
     destroy() {
       destroyed = true
       if (dpInstance) dpInstance.destructor()
+      if (sidebar) sidebar.destroy()
       if (window.gantt) window.gantt.destructor()
     },
   }
