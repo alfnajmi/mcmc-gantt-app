@@ -587,7 +587,8 @@ export function createEditSidebar(opts) {
       } else {
         item.innerHTML = `${opt.icon} ${opt.label}${opt.value === currentVal ? '<span class="check">✓</span>' : ''}`
       }
-      item.onclick = () => {
+      item.onclick = (e) => {
+        e.stopPropagation()
         if (type === 'type') task.type = opt.value
         else task.status = opt.value
         render()
@@ -597,15 +598,17 @@ export function createEditSidebar(opts) {
 
     trigger.parentElement.appendChild(menu)
 
-    // Close on outside click
-    setTimeout(() => {
-      document.addEventListener('click', function handler(e) {
-        if (!menu.contains(e.target) && e.target !== trigger) {
-          menu.remove()
-          document.removeEventListener('click', handler)
-        }
-      })
-    }, 0)
+    // Close on any click outside the menu
+    function closeHandler(e) {
+      if (!menu.contains(e.target)) {
+        menu.remove()
+        document.removeEventListener('mousedown', closeHandler, true)
+      }
+    }
+    // Use mousedown + capture to fire before the button's click
+    requestAnimationFrame(() => {
+      document.addEventListener('mousedown', closeHandler, true)
+    })
   }
 
   function openInPlane() {
