@@ -348,6 +348,42 @@ async def update_issue_dates(project_id: str, issue_id: str, body: dict):
         await svc.close()
 
 
+@router.post("/projects/{project_id}/issues")
+async def create_issue(project_id: str, request: Request):
+    """
+    Create a new issue in Plane.
+
+    Body: { "name": "...", "start_date": "YYYY-MM-DD", "target_date": "YYYY-MM-DD" }
+    """
+    svc = _get_plane_service()
+    try:
+        resolved_id = await _resolve_project_id(svc, project_id)
+        body = await request.json()
+
+        payload = {"name": body.get("name", "Untitled")}
+        if body.get("start_date"):
+            payload["start_date"] = body["start_date"]
+        if body.get("target_date"):
+            payload["target_date"] = body["target_date"]
+
+        resp = await svc._client.post(
+            f"/api/v1/workspaces/{svc.workspace_slug}/projects/{resolved_id}/work-items/",
+            json=payload,
+        )
+        if resp.status_code >= 400:
+            raise PlaneAPIError(resp.status_code, resp.text[:500])
+
+        data = resp.json()
+        await cache.invalidate_project(resolved_id)
+        return {"action": "created", "issue_id": data.get("id"), "name": data.get("name")}
+
+    except PlaneAPIError as e:
+        logger.error("Plane API error creating issue: %s", e.detail)
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    finally:
+        await svc.close()
+
+
 # ------------------------------------------------------------------
 # Cache management
 # ------------------------------------------------------------------
