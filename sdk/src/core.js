@@ -77,8 +77,9 @@ const GANTT_CUSTOM_CSS = `
   .gantt_row {
     border-bottom: none !important;
   }
-  .gantt_row:hover {
-    background: #f8fafc !important;
+  .gantt_row:hover,
+  .gantt_row.hover {
+    background: #f1f5f9 !important;
   }
   .gantt_row.gantt_selected,
   .gantt_row.gantt_selected .gantt_cell {
@@ -86,6 +87,10 @@ const GANTT_CUSTOM_CSS = `
   }
   .gantt_task_row {
     border-bottom: none !important;
+  }
+  .gantt_task_row:hover,
+  .gantt_task_row.hover {
+    background: #f1f5f9 !important;
   }
   .gantt_task_row.gantt_selected {
     background: #eff6ff !important;
