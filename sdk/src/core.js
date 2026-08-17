@@ -712,7 +712,7 @@ export function mountGantt(options) {
         const endStr = formatDate(task.end_date)
         const durationDays = task.duration || 1
         const status = capitalizeStatus(task.status) || (isModule ? 'Planned' : '—')
-        const taskName = (task.text || '').replace(/^[\u{1F4E6}\u{1F504}]\s*/u, '')
+        const taskName = task.text || ''
 
         let propsHtml = ''
         propsHtml += '<div class="gantt-task-popup-row"><span class="gantt-task-popup-label">Status</span><span class="gantt-task-popup-value">' + status + '</span></div>'

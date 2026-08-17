@@ -183,7 +183,7 @@ def transform_issues_to_gantt(
 
             tasks.append({
                 "id": f"module_{module['id']}",
-                "text": f"📦 {module.get('name', 'Untitled Module')}",
+                "text": module.get('name', 'Untitled Module'),
                 "start_date": mod_start.strftime(DATE_FMT),
                 "duration": _compute_duration(mod_start, mod_end),
                 "parent": 0,

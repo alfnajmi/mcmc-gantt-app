@@ -392,7 +392,7 @@ export function createEditSidebar(opts) {
   function open(t) {
     close()
     task = { ...t }
-    task.text = (task.text || '').replace(/^[\u{1F4E6}\u{1F504}]\s*/u, '')
+    task.text = task.text || ''
     task.type = task.type || 'task'
     task.status = task.status || 'to do'
     task.description = task.description || ''
@@ -679,7 +679,7 @@ export function createEditSidebar(opts) {
         // Update gantt locally
         if (window.gantt && window.gantt.isTaskExists(task.id)) {
           const gt = window.gantt.getTask(task.id)
-          gt.text = task.plane_type === 'module' ? '📦 ' + task.text : task.text
+          gt.text = task.text
           gt.status = task.status
           gt.type = task.type
           if (task.start_date) gt.start_date = new Date(task.start_date)
