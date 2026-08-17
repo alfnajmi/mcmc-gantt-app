@@ -167,6 +167,10 @@ const GANTT_CUSTOM_CSS = `
     border-right: 1px solid #f1f5f9 !important;
   }
 
+  .gantt_task_bg {
+    height: 100% !important;
+  }
+
   /* --- Weekend striping — diagonal hatched pattern --- */
   .weekend-cell {
     background-image: repeating-linear-gradient(
