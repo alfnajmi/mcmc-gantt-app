@@ -75,10 +75,20 @@ const GANTT_CUSTOM_CSS = `
     border-bottom: 1px solid #e2e8f0 !important;
   }
   .gantt_row {
-    border-bottom: 1px solid #f1f5f9 !important;
+    border-bottom: none !important;
   }
   .gantt_row:hover {
     background: #f8fafc !important;
+  }
+  .gantt_row.gantt_selected,
+  .gantt_row.gantt_selected .gantt_cell {
+    background: #eff6ff !important;
+  }
+  .gantt_task_row {
+    border-bottom: none !important;
+  }
+  .gantt_task_row.gantt_selected {
+    background: #eff6ff !important;
   }
   .gantt_tree_content {
     font-size: 13px !important;
