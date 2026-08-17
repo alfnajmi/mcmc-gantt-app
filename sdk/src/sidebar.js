@@ -608,7 +608,13 @@ export function createEditSidebar(opts) {
       }
       item.onclick = (e) => {
         e.stopPropagation()
-        if (type === 'type') task.type = opt.value
+        if (type === 'type') {
+          task.type = opt.value
+          // Milestone: auto-set end date = start date
+          if (opt.value === 'milestone' && task.start_date) {
+            task.end_date = task.start_date
+          }
+        }
         else task.status = opt.value
         render()
       }
