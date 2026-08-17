@@ -208,6 +208,14 @@ const GANTT_CUSTOM_CSS = `
     display: none !important;
   }
 
+  /* Add Task button */
+  .gantt-add-task-btn:hover {
+    background: #f1f5f9 !important;
+    border-color: #64748b !important;
+    border-style: solid !important;
+    color: #334155 !important;
+  }
+
   /* --- Lightbox (task edit popup) --- */
   .gantt_cal_light {
     font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
@@ -851,8 +859,7 @@ export function mountGantt(options) {
 
     // Add Task button in grid header
     function injectAddTaskButton() {
-      const existing = container.querySelector('.gantt-add-task-btn')
-      if (existing) existing.remove()
+      if (container.querySelector('.gantt-add-task-btn')) return
       const nameCell = container.querySelector('.gantt_grid_head_cell')
       if (!nameCell) return
       nameCell.style.position = 'relative'
@@ -861,7 +868,7 @@ export function mountGantt(options) {
       btn.className = 'gantt-add-task-btn'
       btn.title = 'Add Task'
       btn.textContent = '+'
-      btn.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:1px dashed #cbd5e1;border-radius:4px;background:#fff;color:#64748b;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;'
+      btn.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:1px dashed #cbd5e1;border-radius:4px;background:#fff;color:#64748b;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:all 0.12s;'
       btn.addEventListener('mousedown', (e) => {
         e.stopPropagation()
         e.preventDefault()
