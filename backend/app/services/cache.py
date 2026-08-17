@@ -162,3 +162,37 @@ async def invalidate_all():
         logger.info("Cache FLUSH: removed %d keys", total)
     except Exception as e:
         logger.warning("Cache invalidate_all error: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Durable application state
+# ---------------------------------------------------------------------------
+
+async def persistent_hash_set(key: str, field: str, value: Any) -> None:
+    """Store durable JSON state outside the expiring Plane cache namespace."""
+    if not _available or _redis is None:
+        raise RuntimeError("Redis is required for recoverable deletion")
+    await _redis.hset(key, field, json.dumps(value, default=str))
+
+
+async def persistent_hash_get(key: str, field: str) -> Any | None:
+    """Read one durable JSON value."""
+    if not _available or _redis is None:
+        raise RuntimeError("Redis is required for recoverable deletion")
+    raw = await _redis.hget(key, field)
+    return json.loads(raw) if raw is not None else None
+
+
+async def persistent_hash_getall(key: str) -> dict[str, Any]:
+    """Read all durable JSON values in a hash."""
+    if not _available or _redis is None:
+        raise RuntimeError("Redis is required for recoverable deletion")
+    values = await _redis.hgetall(key)
+    return {field: json.loads(raw) for field, raw in values.items()}
+
+
+async def persistent_hash_delete(key: str, field: str) -> None:
+    """Delete one durable JSON value."""
+    if not _available or _redis is None:
+        raise RuntimeError("Redis is required for recoverable deletion")
+    await _redis.hdel(key, field)

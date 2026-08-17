@@ -103,6 +103,21 @@ class PlaneService:
 
         return all_results
 
+    async def _write(self, method: str, path: str, payload: dict) -> dict:
+        """Make a JSON write request and return its response body."""
+        resp = await self._client.request(
+            method, f"{_API_PREFIX}{path}", json=payload
+        )
+        if resp.status_code >= 400:
+            raise PlaneAPIError(resp.status_code, resp.text[:500])
+        return resp.json() if resp.content else {}
+
+    async def _delete(self, path: str) -> None:
+        """Make a permanent DELETE request."""
+        resp = await self._client.delete(f"{_API_PREFIX}{path}")
+        if resp.status_code >= 400:
+            raise PlaneAPIError(resp.status_code, resp.text[:500])
+
     # ------------------------------------------------------------------
     # Workspace
     # ------------------------------------------------------------------
@@ -149,6 +164,57 @@ class PlaneService:
             f"{self._ws}/projects/{project_id}/work-items/{issue_id}/"
         )
 
+    async def create_issue(self, project_id: str, payload: dict) -> dict:
+        """Create a work item."""
+        return await self._write(
+            "post", f"{self._ws}/projects/{project_id}/work-items/", payload
+        )
+
+    async def update_issue(self, project_id: str, issue_id: str, payload: dict) -> dict:
+        """Update a work item, including its archive or parent state."""
+        return await self._write(
+            "patch",
+            f"{self._ws}/projects/{project_id}/work-items/{issue_id}/",
+            payload,
+        )
+
+    async def delete_issue(self, project_id: str, issue_id: str) -> None:
+        """Permanently delete a work item."""
+        await self._delete(
+            f"{self._ws}/projects/{project_id}/work-items/{issue_id}/"
+        )
+
+    async def delete_archived_issue(self, project_id: str, issue_id: str) -> None:
+        """Permanently delete an archived work item across Plane API variants."""
+        try:
+            await self.delete_issue(project_id, issue_id)
+        except PlaneAPIError as exc:
+            if exc.status_code != 404:
+                raise
+            # Older Plane releases require restoration before permanent delete.
+            await self.update_issue(project_id, issue_id, {"archived_at": None})
+            await self.delete_issue(project_id, issue_id)
+
+    # ------------------------------------------------------------------
+    # Labels
+    # ------------------------------------------------------------------
+
+    async def list_labels(self, project_id: str) -> list[dict]:
+        """List all labels configured for a project."""
+        return await self._get_paginated(
+            f"{self._ws}/projects/{project_id}/labels/"
+        )
+
+    async def create_label(self, project_id: str, name: str) -> dict:
+        """Create a project label and return it."""
+        resp = await self._client.post(
+            f"{_API_PREFIX}{self._ws}/projects/{project_id}/labels/",
+            json={"name": name},
+        )
+        if resp.status_code >= 400:
+            raise PlaneAPIError(resp.status_code, resp.text[:500])
+        return resp.json()
+
     # ------------------------------------------------------------------
     # Work Item Relations
     # ------------------------------------------------------------------
@@ -190,11 +256,80 @@ class PlaneService:
             f"{self._ws}/projects/{project_id}/modules/"
         )
 
+    async def get_module(self, project_id: str, module_id: str) -> dict:
+        """Get a single active module."""
+        return await self._get(
+            f"{self._ws}/projects/{project_id}/modules/{module_id}/"
+        )
+
     async def list_module_issues(self, project_id: str, module_id: str) -> list[dict]:
         """List all work items assigned to a module."""
         return await self._get_paginated(
             f"{self._ws}/projects/{project_id}/modules/{module_id}/module-issues/"
         )
+
+    async def create_module(self, project_id: str, payload: dict) -> dict:
+        """Create a Plane module (shown as a Project in the Gantt)."""
+        return await self._write(
+            "post", f"{self._ws}/projects/{project_id}/modules/", payload
+        )
+
+    async def update_module(self, project_id: str, module_id: str, payload: dict) -> dict:
+        """Update a Plane module."""
+        return await self._write(
+            "patch",
+            f"{self._ws}/projects/{project_id}/modules/{module_id}/",
+            payload,
+        )
+
+    async def add_module_issues(
+        self, project_id: str, module_id: str, issue_ids: list[str]
+    ) -> dict:
+        """Move work items into a module."""
+        return await self._write(
+            "post",
+            f"{self._ws}/projects/{project_id}/modules/{module_id}/module-issues/",
+            {"issues": issue_ids},
+        )
+
+    async def delete_module(self, project_id: str, module_id: str) -> None:
+        """Permanently delete a module. Plane leaves its work items intact."""
+        await self._delete(
+            f"{self._ws}/projects/{project_id}/modules/{module_id}/"
+        )
+
+    async def archive_module(self, project_id: str, module_id: str) -> None:
+        """Move a module to Plane's archive."""
+        await self._write(
+            "post",
+            f"{self._ws}/projects/{project_id}/modules/{module_id}/archive/",
+            {},
+        )
+
+    async def unarchive_module(self, project_id: str, module_id: str) -> None:
+        """Restore a module from Plane's archive."""
+        await self._delete(
+            f"{self._ws}/projects/{project_id}/archived-modules/{module_id}/unarchive/"
+        )
+
+    async def delete_archived_module(self, project_id: str, module_id: str) -> None:
+        """Permanently delete an archived module across Plane API variants."""
+        try:
+            await self._delete(
+                f"{self._ws}/projects/{project_id}/archived-modules/{module_id}/"
+            )
+        except PlaneAPIError as exc:
+            if exc.status_code != 404:
+                raise
+            # Some Plane versions accept deletion through the ordinary module
+            # endpoint while archived; others require unarchiving first.
+            try:
+                await self.delete_module(project_id, module_id)
+            except PlaneAPIError as active_exc:
+                if active_exc.status_code != 404:
+                    raise
+                await self.unarchive_module(project_id, module_id)
+                await self.delete_module(project_id, module_id)
 
     # ------------------------------------------------------------------
     # States (for mapping state IDs to names/groups)

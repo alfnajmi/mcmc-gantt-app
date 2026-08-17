@@ -4,16 +4,23 @@ Embeddable Gantt chart component for any web application. No iframe needed — r
 
 Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
 
-## Features (v1.1.0)
+## Features (v1.3.10)
 
 - Task detail popup on bar click (Task/Project badge, status, dates, assignee, duration)
 - "View in Plane" button in popup (links directly to issue/module in Plane)
-- Status-based bar coloring (complete → green, in progress → blue, planning → purple, to do → gray)
+- Pastel status-based bar coloring (complete → mint, in progress → blue, planning → lavender, to do → slate)
 - Weekend diagonal striping on day-level scales
 - Today line (dashed pink) + scale header highlight
 - Row drag-to-reorder with Plane sync
 - Project-type bars for modules/cycles (thin green group bars)
 - Milestone markers
+- Projects are native Plane Modules; Tasks and Milestones are Plane work items
+- Promote a Task into a standalone Module while preserving its direct subtasks
+- Recoverable deletion for Projects, Tasks, and Milestones with a 10-second Undo action
+- Trash drawer with Restore, Delete forever, and automatic 30-day cleanup
+- Adaptive task labels: outside-right when possible, inside long bars or outside-left near viewport edges
+- Floating zoom-in/zoom-out controls for day, week, month, and year scales
+- Collapsible task table with remembered visibility
 - Editable mode (drag to resize/move bars, DataProcessor syncs to API)
 
 ## Quick start (for portal teams)
@@ -102,6 +109,8 @@ Includes toolbar, filter, fields panel, edit sidebar, and task popup — zero ad
 | `showFields` | boolean | `true` | Show/hide fields button |
 | `showProjectSelector` | boolean | `false` | Show project dropdown |
 | `showClosed` | boolean | `true` | Initial closed toggle state |
+| `showTaskTable` | boolean | `true` | Initial task-table visibility; the toolbar toggle remembers the user's choice |
+| `showZoomControls` | boolean | `true` | Show floating zoom-in/zoom-out controls |
 
 ### Alternative: GanttChart (bare renderer)
 
@@ -117,6 +126,8 @@ For portals that want full control over the toolbar and surrounding UI:
   workspace-slug="disd"
   project-id="48b5e204-6a3d-46bf-84ec-fb603cf8dd35"
   editable
+  show-grid="true"
+  show-zoom-controls="true"
   height="80vh"
 ></mcmc-gantt>
 
@@ -139,7 +150,9 @@ import GanttChart from '@mcmc/gantt-chart/vue'
     project-id="48b5e204-..."
     :editable="true"
     scale="week"
+    :show-zoom-controls="true"
     height="80vh"
+    @scale-change="handleScaleChange"
     @task-click="handleClick"
     @task-change="handleChange"
   />
@@ -165,14 +178,20 @@ const gantt = mountGantt({
 
   // Popup control
   showPopup: true,  // default: true
+  showGrid: true,   // default: true
+  showZoomControls: true, // default: false in the bare API
 
   // Callbacks
   onTaskClick: (task) => console.log(task),
   onTaskChange: (task) => console.log('updated', task),
+  onScaleChange: (level) => console.log('scale', level),
 })
 
 // Later:
 gantt.setScale('week')
+gantt.zoomIn()
+gantt.zoomOut()
+gantt.setGridVisible(false)
 gantt.destroy()
 ```
 
@@ -188,8 +207,11 @@ gantt.destroy()
 | `workspaceSlug` | string | `''` | Plane workspace slug |
 | `projectId` | string | `''` | Plane project UUID (for building Plane links) |
 | `showPopup` | boolean | `true` | Show task detail popup on bar click |
+| `showGrid` | boolean | `true` | Show the task table beside the timeline |
+| `showZoomControls` | boolean | `false` | Show floating timeline zoom controls |
 | `onTaskClick` | function | `null` | Callback when task bar is clicked |
 | `onTaskChange` | function | `null` | Callback after task is updated (drag/resize) |
+| `onScaleChange` | function | `null` | Callback after zoom controls change the scale |
 
 ## Task Popup
 

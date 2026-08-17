@@ -86,6 +86,33 @@ const SIDEBAR_CSS = `
   display: flex;
   gap: 2px;
 }
+.gantt-sidebar-more-wrap { position: relative; }
+.gantt-sidebar-more-menu {
+  position: absolute;
+  top: 32px;
+  right: 0;
+  z-index: 210;
+  width: 170px;
+  padding: 5px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .14);
+}
+.gantt-sidebar-more-menu[hidden] { display: none; }
+.gantt-sidebar-more-item {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #b91c1c;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.gantt-sidebar-more-item:hover { background: #fef2f2; }
 /* Type dropdown */
 .gantt-type-btn {
   display: inline-flex;
@@ -327,6 +354,13 @@ const SIDEBAR_CSS = `
   font-family: inherit;
 }
 .gantt-sidebar-footer button:hover { background: #f8fafc; }
+.gantt-sidebar-footer .spacer { flex: 1; }
+.gantt-sidebar-footer button.delete {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+.gantt-sidebar-footer button.delete:hover { background: #fee2e2; }
 .gantt-sidebar-footer button.save {
   background: #2563eb;
   border-color: #2563eb;
@@ -334,6 +368,35 @@ const SIDEBAR_CSS = `
 }
 .gantt-sidebar-footer button.save:hover { background: #1d4ed8; }
 .gantt-sidebar-footer button.save:disabled { opacity: 0.6; cursor: not-allowed; }
+.gantt-trash-toast {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 280px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  font-size: 13px;
+  font-weight: 600;
+}
+.gantt-trash-toast button {
+  margin-left: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 5px 10px;
+  background: #fff;
+  color: #2563eb;
+  font: inherit;
+  cursor: pointer;
+}
+.gantt-trash-toast button:hover { background: #eff6ff; }
 `
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -360,6 +423,21 @@ function fmtDate(str) {
   return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 
+function descriptionToText(value) {
+  if (!value) return ''
+  const text = String(value)
+  if (!text.includes('<') || !text.includes('>')) return text
+  const wrapper = document.createElement('div')
+  wrapper.innerHTML = text
+  wrapper.querySelectorAll('br').forEach(node => node.replaceWith('\n'))
+  wrapper.querySelectorAll('p, div, li').forEach(node => node.append('\n'))
+  return (wrapper.textContent || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 /**
  * Create and manage the edit sidebar.
  *
@@ -380,6 +458,8 @@ export function createEditSidebar(opts) {
   let task = null
   let calField = null // 'start' | 'end' | null
   let calDate = new Date()
+  let toast = null
+  let toastTimer = null
 
   // Inject CSS once
   if (!document.querySelector('#gantt-sidebar-css')) {
@@ -392,23 +472,29 @@ export function createEditSidebar(opts) {
   function open(t) {
     close()
     task = { ...t }
+    task.start_date = task.plane_start_date || task.start_date
+    task.end_date = task.plane_target_date || task.end_date
     task.text = task.text || ''
     task.type = task.type || 'task'
     task.status = task.status || 'to do'
-    task.description = task.description || ''
+    task.description = descriptionToText(task.description)
     calField = null
     render()
   }
 
   function close() {
+    removeElements()
+    task = null
+  }
+
+  function removeElements() {
     if (el) { el.remove(); el = null }
     if (overlay) { overlay.remove(); overlay = null }
-    task = null
   }
 
   function render() {
     if (!task) return
-    close()
+    removeElements()
 
     // Overlay
     overlay = document.createElement('div')
@@ -450,6 +536,14 @@ export function createEditSidebar(opts) {
         </div>
         <div class="gantt-sidebar-actions">
           ${planeUrl ? `<button class="gantt-sidebar-icon-btn" data-action="open-plane" title="Open in Plane">↗</button>` : ''}
+          ${task._isNew ? '' : `
+            <div class="gantt-sidebar-more-wrap">
+              <button class="gantt-sidebar-icon-btn" data-action="toggle-actions" title="More actions" aria-label="More actions">•••</button>
+              <div class="gantt-sidebar-more-menu" data-actions-menu hidden>
+                <button class="gantt-sidebar-more-item" data-action="delete">Delete</button>
+              </div>
+            </div>
+          `}
           <button class="gantt-sidebar-icon-btn" data-action="close">✕</button>
         </div>
       </div>
@@ -490,6 +584,7 @@ export function createEditSidebar(opts) {
         <textarea data-field="description" placeholder="Add description..." rows="3">${escHtml(task.description)}</textarea>
       </div>
       <div class="gantt-sidebar-footer">
+        <span class="spacer"></span>
         <button data-action="close">Cancel</button>
         <button class="save" data-action="save">Save</button>
       </div>
@@ -546,12 +641,17 @@ export function createEditSidebar(opts) {
 
       if (action === 'close') close()
       else if (action === 'open-plane') openInPlane()
+      else if (action === 'toggle-actions') {
+        const menu = el.querySelector('[data-actions-menu]')
+        if (menu) menu.hidden = !menu.hidden
+      }
       else if (action === 'toggle-type') showDropdown('type', btn)
       else if (action === 'toggle-status') showDropdown('status', btn)
       else if (action === 'pick-start') { calField = calField === 'start' ? null : 'start'; calDate = task.start_date ? new Date(task.start_date) : new Date(); render() }
       else if (action === 'pick-end') { calField = calField === 'end' ? null : 'end'; calDate = task.end_date ? new Date(task.end_date) : new Date(); render() }
       else if (action === 'cal-prev') { calDate.setMonth(calDate.getMonth() - 1); render() }
       else if (action === 'cal-next') { calDate.setMonth(calDate.getMonth() + 1); render() }
+      else if (action === 'delete') deleteItem()
       else if (action === 'save') save()
     })
 
@@ -593,7 +693,9 @@ export function createEditSidebar(opts) {
     const existing = el.querySelector('.gantt-dropdown-menu')
     if (existing) { existing.remove(); return }
 
-    const options = type === 'type' ? TYPE_OPTIONS : STATUS_OPTIONS
+    const options = type === 'type'
+      ? (task.plane_type === 'module' ? TYPE_OPTIONS.filter(opt => opt.value === 'project') : TYPE_OPTIONS)
+      : STATUS_OPTIONS
     const currentVal = type === 'type' ? task.type : task.status
 
     const menu = document.createElement('div')
@@ -645,6 +747,82 @@ export function createEditSidebar(opts) {
     window.open(url, '_blank')
   }
 
+  function reloadGantt() {
+    if (!window.gantt) return
+    window.gantt.clearAll()
+    window.gantt.load(`${apiBase}/api/projects/${project}/data?bypass_cache=true`)
+  }
+
+  function showTrashToast(record) {
+    if (toast) toast.remove()
+    if (toastTimer) clearTimeout(toastTimer)
+    toast = document.createElement('div')
+    toast.className = 'gantt-trash-toast'
+    toast.innerHTML = `<span>${escHtml(record.gantt_type === 'project' ? 'Project' : record.gantt_type === 'milestone' ? 'Milestone' : 'Task')} moved to Trash.</span><button type="button">Undo</button>`
+    container.appendChild(toast)
+    toast.querySelector('button').onclick = async () => {
+      const button = toast.querySelector('button')
+      button.disabled = true
+      button.textContent = 'Restoring...'
+      try {
+        const resp = await fetch(
+          `${apiBase}/api/projects/${project}/trash/${record.entity_type}/${record.entity_id}/restore`,
+          { method: 'POST' },
+        )
+        if (!resp.ok) throw new Error(await responseErrorMessage(resp, 'Failed to restore item'))
+        toast.remove()
+        toast = null
+        reloadGantt()
+      } catch (err) {
+        button.disabled = false
+        button.textContent = 'Undo'
+        window.alert(err.message || 'The item could not be restored.')
+      }
+    }
+    toastTimer = setTimeout(() => {
+      if (toast) toast.remove()
+      toast = null
+    }, 10000)
+  }
+
+  async function responseErrorMessage(response, fallback) {
+    try {
+      const body = await response.json()
+      const detail = body && body.detail
+      if (typeof detail === 'string' && detail.trim()) return detail
+      if (detail) return JSON.stringify(detail)
+    } catch {
+      // Use the fallback when the API response is not JSON.
+    }
+    return `${fallback} (${response.status})`
+  }
+
+  async function deleteItem() {
+    if (!task || task._isNew || !task.plane_id) return
+    const isModule = task.plane_type === 'module'
+    const kind = isModule ? 'Project' : (task.type === 'milestone' ? 'Milestone' : 'Task')
+    try {
+      const menu = el && el.querySelector('[data-actions-menu]')
+      if (menu) menu.hidden = true
+      const resp = await fetch(
+        `${apiBase}/api/projects/${project}/trash/${isModule ? 'module' : 'issue'}/${task.plane_id}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gantt_type: isModule ? 'project' : task.type }),
+        },
+      )
+      if (!resp.ok) throw new Error(await responseErrorMessage(resp, `Failed to move ${kind.toLowerCase()} to Trash`))
+      const result = await resp.json()
+      close()
+      reloadGantt()
+      showTrashToast(result.item)
+    } catch (err) {
+      console.error('Sidebar delete failed:', err)
+      window.alert(err.message || 'The item could not be deleted.')
+    }
+  }
+
   async function save() {
     if (!task) return
     const saveBtn = el.querySelector('[data-action="save"]')
@@ -652,58 +830,84 @@ export function createEditSidebar(opts) {
 
     try {
       if (task._isNew) {
-        // Create new task in Plane
-        // For milestones, set same start and end date
         const targetDate = task.type === 'milestone' ? task.start_date : task.end_date
-        const resp = await fetch(`${apiBase}/api/projects/${project}/issues`, {
+        const isModule = task.type === 'project'
+        const resp = await fetch(`${apiBase}/api/projects/${project}/${isModule ? 'modules' : 'issues'}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: task.text || 'Untitled',
+            name: task.text || (isModule ? 'Untitled Module' : 'Untitled'),
+            description: task.description || '',
             start_date: task.start_date || null,
             target_date: targetDate || null,
+            ...(isModule ? {} : { gantt_type: task.type === 'milestone' ? 'milestone' : 'task' }),
           }),
         })
-        if (resp.ok) {
-          // Reload gantt to show new task
-          if (window.gantt) {
-            window.gantt.clearAll()
-            window.gantt.load(`${apiBase}/api/projects/${project}/data`)
-          }
+        if (!resp.ok) throw new Error(await responseErrorMessage(resp, `Failed to create ${isModule ? 'project' : 'task'}`))
+        reloadGantt()
+      } else if (task.plane_type === 'issue' && task.type === 'project') {
+        if (!window.confirm(
+          `Promote “${task.text}” to a standalone Project?\n\n` +
+          'A Plane Module will be created, direct subtasks will move into it, and the original task will be archived.'
+        )) {
+          if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false }
+          return
         }
+        const resp = await fetch(
+          `${apiBase}/api/projects/${project}/issues/${task.plane_id}/promote-to-module`,
+          { method: 'POST' },
+        )
+        if (!resp.ok) throw new Error(await responseErrorMessage(resp, 'Failed to promote task'))
+        reloadGantt()
+      } else if (task.plane_type === 'module') {
+        const resp = await fetch(`${apiBase}/api/projects/${project}/modules/${task.plane_id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: task.text || 'Untitled Module',
+            description: task.description || '',
+            start_date: task.start_date || null,
+            target_date: task.end_date || null,
+          }),
+        })
+        if (!resp.ok) throw new Error(await responseErrorMessage(resp, 'Failed to save project'))
+        reloadGantt()
       } else {
-        // Update existing — PATCH dates
-        if (task.plane_type !== 'module' && task.plane_id) {
-          await fetch(`${apiBase}/api/projects/${project}/issues/${task.plane_id}/dates`, {
+        if (task.plane_id) {
+          const targetDate = task.type === 'milestone' ? task.start_date : task.end_date
+          const resp = await fetch(`${apiBase}/api/projects/${project}/issues/${task.plane_id}/dates`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              name: task.text || 'Untitled',
+              description: task.description || '',
               start_date: task.start_date || null,
-              target_date: task.end_date || null,
+              target_date: targetDate || null,
+              gantt_type: task.type === 'milestone' ? 'milestone' : 'task',
             }),
           })
+          if (!resp.ok) throw new Error(await responseErrorMessage(resp, 'Failed to save task'))
         }
 
-        // Update gantt locally
-        if (window.gantt && window.gantt.isTaskExists(task.id)) {
-          const gt = window.gantt.getTask(task.id)
-          gt.text = task.text
-          gt.status = task.status
-          gt.type = task.type
-          if (task.start_date) gt.start_date = new Date(task.start_date)
-          if (task.end_date) gt.end_date = new Date(task.end_date)
-          window.gantt.updateTask(task.id)
-        }
+        reloadGantt()
       }
 
       close()
     } catch (err) {
       console.error('Sidebar save failed:', err)
+      window.alert(err.message || 'The change could not be saved.')
       if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false }
     }
   }
 
-  return { open, close, destroy: close }
+  function destroy() {
+    close()
+    if (toastTimer) clearTimeout(toastTimer)
+    if (toast) toast.remove()
+    toast = null
+  }
+
+  return { open, close, destroy }
 }
 
 function escHtml(str) {

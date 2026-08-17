@@ -1,6 +1,6 @@
 {
   "name": "@mcmc/gantt-chart",
-  "version": "1.3.0",
+  "version": "1.3.10",
   "description": "Embeddable Gantt chart component — Web Component + Vue 3 wrapper",
   "type": "module",
   "main": "dist/gantt-chart.js",
@@ -46,6 +46,12 @@
       "optional": true
     }
   },
-  "keywords": ["gantt", "chart", "web-component", "vue", "embed"],
+  "keywords": [
+    "gantt",
+    "chart",
+    "web-component",
+    "vue",
+    "embed"
+  ],
   "license": "MIT"
 }

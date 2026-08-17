@@ -21,6 +21,8 @@
  *   showFilter     — show the filter button (default: true)
  *   showFields     — show the fields button (default: true)
  *   showClosed     — initial state for completed tasks (default: true)
+ *   showTaskTable  — initial task-table visibility (default: true)
+ *   showZoomControls — show floating timeline zoom controls (default: true)
  */
 
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
@@ -39,6 +41,8 @@ const props = defineProps({
   showFilter: { type: Boolean, default: true },
   showFields: { type: Boolean, default: true },
   showClosed: { type: Boolean, default: true },
+  showTaskTable: { type: Boolean, default: true },
+  showZoomControls: { type: Boolean, default: true },
   showProjectSelector: { type: Boolean, default: false },
 })
 
@@ -65,6 +69,38 @@ function setScale(value) {
 
 // --- Closed toggle ---
 const closedVisible = ref(props.showClosed)
+
+function loadTaskTableVisibility(fallback) {
+  try {
+    const stored = localStorage.getItem('mcmc-gantt-task-table')
+    if (stored === 'hidden') return false
+    if (stored === 'visible') return true
+  } catch {
+    // Storage may be unavailable in restricted browser contexts.
+  }
+  return fallback
+}
+
+function saveTaskTableVisibility(visible) {
+  try {
+    localStorage.setItem('mcmc-gantt-task-table', visible ? 'visible' : 'hidden')
+  } catch {
+    // Storage may be unavailable in restricted browser contexts.
+  }
+}
+
+const taskTableVisible = ref(loadTaskTableVisibility(props.showTaskTable))
+
+function toggleTaskTable() {
+  taskTableVisible.value = !taskTableVisible.value
+  saveTaskTableVisibility(taskTableVisible.value)
+  if (controller) controller.setGridVisible(taskTableVisible.value)
+}
+
+watch(() => props.showTaskTable, (visible) => {
+  taskTableVisible.value = visible
+  if (controller) controller.setGridVisible(visible)
+})
 
 // --- Project selector ---
 const projectList = ref([])
@@ -108,8 +144,11 @@ function initGanttWithProject(projectId) {
     workspaceSlug: props.workspaceSlug,
     projectId: projectId,
     showPopup: true,
+    showGrid: taskTableVisible.value,
+    showZoomControls: props.showZoomControls,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
+    onScaleChange: (level) => { currentScale.value = level },
   })
   const interval = setInterval(() => {
     if (window.gantt && window.gantt.config) { clearInterval(interval); onGanttReady() }
@@ -143,6 +182,10 @@ function clearFilters() {
 
 // --- Fields panel ---
 const fieldsOpen = ref(false)
+const trashOpen = ref(false)
+const trashLoading = ref(false)
+const trashItems = ref([])
+const trashError = ref('')
 const fields = [
   { key: 'text', label: 'Task Name', alwaysOn: true },
   { key: 'start_date', label: 'Start date' },
@@ -195,8 +238,11 @@ function initGantt() {
     workspaceSlug: props.workspaceSlug,
     projectId: props.projectId,
     showPopup: true,
+    showGrid: taskTableVisible.value,
+    showZoomControls: props.showZoomControls,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
+    onScaleChange: (level) => { currentScale.value = level },
   })
 
   // Wait for gantt to be ready then apply overrides
@@ -280,6 +326,56 @@ function fmtCol(d) {
 }
 function capitalize(s) { return s ? s.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') : '' }
 
+function activeProjectId() {
+  return selectedProject.value?.id || props.project
+}
+
+function reloadChart() {
+  const projectId = activeProjectId()
+  if (!window.gantt || !projectId) return
+  window.gantt.clearAll()
+  window.gantt.load(`${props.apiBase}/api/projects/${projectId}/data?bypass_cache=true`)
+}
+
+async function openTrash() {
+  trashOpen.value = true
+  trashLoading.value = true
+  trashError.value = ''
+  try {
+    const response = await fetch(`${props.apiBase}/api/projects/${activeProjectId()}/trash`)
+    if (!response.ok) throw new Error(`Failed to load Trash (${response.status})`)
+    trashItems.value = (await response.json()).items || []
+  } catch (error) {
+    trashError.value = error.message || 'Trash could not be loaded.'
+  } finally {
+    trashLoading.value = false
+  }
+}
+
+async function restoreTrashItem(item) {
+  const response = await fetch(
+    `${props.apiBase}/api/projects/${activeProjectId()}/trash/${item.entity_type}/${item.entity_id}/restore`,
+    { method: 'POST' },
+  )
+  if (!response.ok) throw new Error(`Failed to restore item (${response.status})`)
+  trashItems.value = trashItems.value.filter(value => value.entity_id !== item.entity_id)
+  reloadChart()
+}
+
+async function deleteTrashItem(item) {
+  if (!window.confirm(`Delete “${item.name}” forever? This cannot be undone.`)) return
+  const response = await fetch(
+    `${props.apiBase}/api/projects/${activeProjectId()}/trash/${item.entity_type}/${item.entity_id}?confirm=true`,
+    { method: 'DELETE' },
+  )
+  if (!response.ok) throw new Error(`Failed to permanently delete item (${response.status})`)
+  trashItems.value = trashItems.value.filter(value => value.entity_id !== item.entity_id)
+}
+
+function daysUntilPurge(item) {
+  return Math.max(0, Math.ceil((new Date(item.purge_at) - Date.now()) / 86400000))
+}
+
 // Toolbar actions
 function handleToday() { if (window.gantt) window.gantt.showDate(new Date()) }
 function handleAutoFit() { if (window.gantt) { window.gantt.config.fit_tasks = true; window.gantt.render() } }
@@ -310,6 +406,20 @@ function handleExport() {
     <!-- Toolbar -->
     <div v-if="showToolbar" class="gv-toolbar">
       <div class="gv-toolbar-left">
+        <button
+          class="gv-btn gv-table-toggle"
+          :class="{ active: !taskTableVisible }"
+          :title="taskTableVisible ? 'Hide task table' : 'Show task table'"
+          :aria-label="taskTableVisible ? 'Hide task table' : 'Show task table'"
+          :aria-pressed="!taskTableVisible"
+          @click="toggleTaskTable"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2"/>
+            <line x1="9" y1="4" x2="9" y2="20"/>
+          </svg>
+          Task table
+        </button>
         <!-- Project selector -->
         <div v-if="showProjectSelector" class="gv-dropdown-wrap">
           <button class="gv-btn gv-project-btn" @click="showProjectDropdown = !showProjectDropdown">
@@ -341,6 +451,7 @@ function handleExport() {
         <button class="gv-btn" @click="handleExport">Export</button>
       </div>
       <div class="gv-toolbar-right">
+        <button class="gv-btn" :class="{ active: trashOpen }" @click="openTrash">Trash</button>
         <button v-if="showFilter" class="gv-btn" :class="{ active: filterOpen || activeFilterCount > 0 }" @click="filterOpen = !filterOpen">
           Filter <span v-if="activeFilterCount" class="gv-badge">{{ activeFilterCount }}</span>
         </button>
@@ -398,6 +509,33 @@ function handleExport() {
               <span class="gv-toggle-slider"></span>
             </label>
           </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="gv-slide">
+      <div v-if="trashOpen" class="gv-trash-panel">
+        <div class="gv-fields-header">
+          <div><strong>Trash</strong><small>Items are deleted forever after 30 days.</small></div>
+          <button @click="trashOpen = false">✕</button>
+        </div>
+        <div class="gv-trash-body">
+          <div v-if="trashLoading" class="gv-trash-empty">Loading…</div>
+          <div v-else-if="trashError" class="gv-trash-empty gv-trash-error">{{ trashError }}</div>
+          <div v-else-if="!trashItems.length" class="gv-trash-empty">Trash is empty.</div>
+          <template v-else>
+            <div v-for="item in trashItems" :key="`${item.entity_type}-${item.entity_id}`" class="gv-trash-row">
+              <div class="gv-trash-copy">
+                <span class="gv-trash-type">{{ capitalize(item.gantt_type) }}</span>
+                <strong>{{ item.name }}</strong>
+                <small>Deletes in {{ daysUntilPurge(item) }} days</small>
+              </div>
+              <div class="gv-trash-actions">
+                <button @click="restoreTrashItem(item)">Restore</button>
+                <button class="danger" @click="deleteTrashItem(item)">Delete forever</button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </Transition>
@@ -505,6 +643,24 @@ function handleExport() {
   background: #fff; border-left: 1px solid #e2e8f0; z-index: 50;
   display: flex; flex-direction: column; box-shadow: -2px 0 8px rgba(0,0,0,0.04);
 }
+.gv-trash-panel {
+  position: absolute; top: 0; right: 0; width: min(440px, 92%); height: 100%;
+  background: #fff; border-left: 1px solid #e2e8f0; z-index: 60;
+  display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(15,23,42,.08);
+}
+.gv-fields-header div { display: flex; flex-direction: column; gap: 3px; }
+.gv-fields-header small { font-size: 11px; font-weight: 400; color: #64748b; }
+.gv-trash-body { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.gv-trash-empty { padding: 28px 8px; text-align: center; color: #94a3b8; font-size: 13px; }
+.gv-trash-error { color: #b91c1c; }
+.gv-trash-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+.gv-trash-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.gv-trash-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #1e293b; }
+.gv-trash-copy small { font-size: 10px; color: #94a3b8; }
+.gv-trash-type { align-self: flex-start; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.gv-trash-actions { display: flex; flex-direction: column; gap: 5px; }
+.gv-trash-actions button { padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; color: #2563eb; font-size: 10px; cursor: pointer; }
+.gv-trash-actions button.danger { color: #b91c1c; border-color: #fecaca; }
 .gv-fields-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 14px 10px; border-bottom: 1px solid #f1f5f9;
