@@ -647,13 +647,15 @@ export function createEditSidebar(opts) {
     try {
       if (task._isNew) {
         // Create new task in Plane
+        // For milestones, set same start and end date
+        const targetDate = task.type === 'milestone' ? task.start_date : task.end_date
         const resp = await fetch(`${apiBase}/api/projects/${project}/issues`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: task.text || 'Untitled',
             start_date: task.start_date || null,
-            target_date: task.end_date || null,
+            target_date: targetDate || null,
           }),
         })
         if (resp.ok) {
