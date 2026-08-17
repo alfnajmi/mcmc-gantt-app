@@ -645,27 +645,47 @@ export function createEditSidebar(opts) {
     if (saveBtn) { saveBtn.textContent = 'Saving...'; saveBtn.disabled = true }
 
     try {
-      // PATCH dates + description to Plane via our API
-      if (task.plane_type !== 'module' && task.plane_id) {
-        await fetch(`${apiBase}/api/projects/${project}/issues/${task.plane_id}/dates`, {
-          method: 'PATCH',
+      if (task._isNew) {
+        // Create new task in Plane
+        const resp = await fetch(`${apiBase}/api/projects/${project}/issues`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            name: task.text || 'Untitled',
             start_date: task.start_date || null,
             target_date: task.end_date || null,
           }),
         })
-      }
+        if (resp.ok) {
+          // Reload gantt to show new task
+          if (window.gantt) {
+            window.gantt.clearAll()
+            window.gantt.load(`${apiBase}/api/projects/${project}/data`)
+          }
+        }
+      } else {
+        // Update existing — PATCH dates
+        if (task.plane_type !== 'module' && task.plane_id) {
+          await fetch(`${apiBase}/api/projects/${project}/issues/${task.plane_id}/dates`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              start_date: task.start_date || null,
+              target_date: task.end_date || null,
+            }),
+          })
+        }
 
-      // Update gantt locally
-      if (window.gantt && window.gantt.isTaskExists(task.id)) {
-        const gt = window.gantt.getTask(task.id)
-        gt.text = task.plane_type === 'module' ? '📦 ' + task.text : task.text
-        gt.status = task.status
-        gt.type = task.type
-        if (task.start_date) gt.start_date = new Date(task.start_date)
-        if (task.end_date) gt.end_date = new Date(task.end_date)
-        window.gantt.updateTask(task.id)
+        // Update gantt locally
+        if (window.gantt && window.gantt.isTaskExists(task.id)) {
+          const gt = window.gantt.getTask(task.id)
+          gt.text = task.plane_type === 'module' ? '📦 ' + task.text : task.text
+          gt.status = task.status
+          gt.type = task.type
+          if (task.start_date) gt.start_date = new Date(task.start_date)
+          if (task.end_date) gt.end_date = new Date(task.end_date)
+          window.gantt.updateTask(task.id)
+        }
       }
 
       close()
