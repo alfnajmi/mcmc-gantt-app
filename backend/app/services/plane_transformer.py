@@ -23,11 +23,52 @@ Link types in dhtmlx:
 
 import logging
 from datetime import date, datetime
+from html.parser import HTMLParser
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 DATE_FMT = "%Y-%m-%d %H:%M"
+GANTT_MILESTONE_LABEL_NAME = "Gantt: Milestone"
+_MILESTONE_LABEL_NAMES = {
+    "milestone",
+    GANTT_MILESTONE_LABEL_NAME.casefold(),
+}
+
+
+class _DescriptionTextParser(HTMLParser):
+    """Convert Plane's description_html into readable text for textareas."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag.casefold() == "br":
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.casefold() in {"p", "div", "li"}:
+            self.parts.append("\n")
+
+
+def _description_to_text(value: Any) -> str:
+    """Return clean plain text whether Plane supplied HTML or plain text."""
+    if not value:
+        return ""
+    text = str(value)
+    if "<" not in text or ">" not in text:
+        return text
+    parser = _DescriptionTextParser()
+    try:
+        parser.feed(text)
+        lines = [line.strip() for line in "".join(parser.parts).splitlines()]
+        return "\n".join(line for line in lines if line).strip()
+    except Exception:
+        return text
 
 
 def _parse_date(value: str | None) -> datetime | None:
@@ -43,11 +84,29 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 def _compute_duration(start: datetime | None, end: datetime | None) -> int:
-    """Compute duration in days between two dates. Minimum 1 day."""
+    """Compute the raw inclusive-boundary duration between two dates."""
     if not start or not end:
         return 1
     delta = (end - start).days
+    if delta == 0:
+        return 0
     return max(delta, 1)
+
+
+def _has_milestone_label(labels: Any) -> bool:
+    """Return whether expanded Plane labels explicitly mark a Gantt milestone."""
+    if not labels or not isinstance(labels, list):
+        return False
+
+    for label in labels:
+        if isinstance(label, dict):
+            name = str(label.get("name", "")).strip().casefold()
+        else:
+            # Unexpanded label UUIDs cannot communicate milestone semantics.
+            continue
+        if name in _MILESTONE_LABEL_NAMES:
+            return True
+    return False
 
 
 def _map_state_to_status(state: dict | str | None, states_map: dict[str, dict] | None = None) -> str:
@@ -183,7 +242,7 @@ def transform_issues_to_gantt(
 
             tasks.append({
                 "id": f"module_{module['id']}",
-                "text": f"📦 {module.get('name', 'Untitled Module')}",
+                "text": module.get('name', 'Untitled Module'),
                 "start_date": mod_start.strftime(DATE_FMT),
                 "duration": _compute_duration(mod_start, mod_end),
                 "parent": 0,
@@ -195,13 +254,17 @@ def transform_issues_to_gantt(
                 "sort_order": module.get("sort_order", 0),
                 "plane_id": module["id"],
                 "plane_type": "module",
+                "description": _description_to_text(module.get("description", "")),
+                "plane_start_date": module.get("start_date"),
+                "plane_target_date": module.get("target_date"),
             })
 
     # --- Issues as task bars ---
     # Build a lookup for parent resolution
-    issue_ids = {issue["id"] for issue in issues}
+    active_issues = [issue for issue in issues if not issue.get("archived_at")]
+    issue_ids = {issue["id"] for issue in active_issues}
 
-    for issue in issues:
+    for issue in active_issues:
         issue_id = issue["id"]
         start = _parse_date(issue.get("start_date"))
         end = _parse_date(issue.get("target_date"))
@@ -218,7 +281,7 @@ def transform_issues_to_gantt(
         if not end:
             end = start
 
-        duration = _compute_duration(start, end)
+        raw_duration = _compute_duration(start, end)
 
         # Resolve parent — use Plane's parent field (sub-issue hierarchy)
         # If no sub-issue parent, check if issue belongs to a module
@@ -230,15 +293,21 @@ def transform_issues_to_gantt(
         else:
             parent = 0
 
-        # Determine task type
-        # If this issue has children (other issues reference it as parent), mark as "project"
-        has_children = any(i.get("parent") == issue_id for i in issues)
-        if has_children:
-            task_type = "project"
-        elif duration == 0:
+        # Task type is explicit. Equal start/target dates are valid one-day tasks and
+        # must not be treated as milestones unless Plane carries the marker label.
+        # Only Plane Modules are Gantt Projects. An issue remains a Task even
+        # when it has sub-issues; promotion is an explicit entity migration.
+        if _has_milestone_label(issue.get("labels")):
             task_type = "milestone"
         else:
             task_type = "task"
+
+        if task_type == "milestone":
+            duration = 0
+        else:
+            # dhtmlxGantt needs a positive duration to draw a task bar. A Plane
+            # work item whose dates are equal represents one working day here.
+            duration = max(raw_duration, 1)
 
         # Map state
         status = _map_state_to_status(issue.get("state"), states_map)
@@ -266,6 +335,13 @@ def transform_issues_to_gantt(
             "plane_id": issue_id,
             "plane_type": "issue",
             "sequence_id": issue.get("sequence_id"),
+            "description": _description_to_text(
+                issue.get("description_html") or issue.get("description", "")
+            ),
+            # Preserve Plane's inclusive date values for edit forms. dhtmlx uses
+            # an exclusive calculated end_date, which differs for one-day tasks.
+            "plane_start_date": issue.get("start_date"),
+            "plane_target_date": issue.get("target_date"),
         })
 
     # --- Relations as dependency links ---
