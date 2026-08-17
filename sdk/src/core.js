@@ -830,6 +830,50 @@ export function mountGantt(options) {
     gantt.init(container)
     gantt.load(`${apiUrl}/data`, () => {
       gantt.showDate(new Date())
+      // Inject Add Task button after data loads
+      if (editable) injectAddTaskButton()
+    })
+
+    // Add Task button in grid header
+    function injectAddTaskButton() {
+      const existing = container.querySelector('.gantt-add-task-btn')
+      if (existing) existing.remove()
+      const nameCell = container.querySelector('.gantt_grid_head_cell')
+      if (!nameCell) return
+      nameCell.style.position = 'relative'
+      nameCell.style.overflow = 'visible'
+      const btn = document.createElement('button')
+      btn.className = 'gantt-add-task-btn'
+      btn.title = 'Add Task'
+      btn.textContent = '+'
+      btn.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:1px dashed #cbd5e1;border-radius:4px;background:#fff;color:#64748b;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;'
+      btn.addEventListener('mousedown', (e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        if (sidebar) {
+          sidebar.open({
+            id: null,
+            plane_id: null,
+            plane_type: 'issue',
+            type: 'task',
+            text: '',
+            description: '',
+            status: 'to do',
+            start_date: new Date().toISOString().split('T')[0],
+            end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+            assignee: '',
+            priority: '',
+            sequence_id: null,
+            _isNew: true,
+          })
+        }
+      }, true)
+      nameCell.appendChild(btn)
+    }
+
+    // Re-inject on render
+    gantt.attachEvent('onGanttRender', () => {
+      if (editable) setTimeout(injectAddTaskButton, 50)
     })
 
     // DataProcessor for edits

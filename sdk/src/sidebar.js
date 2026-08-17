@@ -180,7 +180,26 @@ const SIDEBAR_CSS = `
   cursor: pointer;
   font-style: italic;
 }
-.gantt-prop-empty:hover { color: #7c3aed; }
+.gantt-prop-empty:hover { color: #475569; }
+.gantt-prop-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px dashed #e2e8f0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  cursor: pointer;
+  font-family: inherit;
+}
+.gantt-prop-empty-btn:hover {
+  border-color: #64748b;
+  color: #334155;
+  background: #f1f5f9;
+}
 .gantt-status-btn {
   display: inline-flex;
   align-items: center;
@@ -217,9 +236,9 @@ const SIDEBAR_CSS = `
   cursor: pointer;
 }
 .gantt-date-chip:hover, .gantt-date-chip.active {
-  border-color: #818cf8;
-  background: #eef2ff;
-  color: #4338ca;
+  border-color: #64748b;
+  background: #f1f5f9;
+  color: #334155;
 }
 .gantt-date-sep { color: #cbd5e1; font-size: 11px; }
 /* Calendar */
@@ -449,7 +468,7 @@ export function createEditSidebar(opts) {
         </div>
         <div class="gantt-prop-row">
           <div class="gantt-prop-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Assignees</div>
-          <div class="gantt-prop-value">${task.assignee ? `<span>${escHtml(task.assignee)}</span>` : `<span class="gantt-prop-empty" data-action="open-plane">Empty</span>`}</div>
+          <div class="gantt-prop-value">${task.assignee ? `<span>${escHtml(task.assignee)}</span>` : `<button class="gantt-prop-empty-btn" data-action="open-plane">↗ Add in Plane</button>`}</div>
         </div>
         <div class="gantt-prop-row">
           <div class="gantt-prop-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>Dates</div>
@@ -464,7 +483,7 @@ export function createEditSidebar(opts) {
         ${calHTML}
         <div class="gantt-prop-row">
           <div class="gantt-prop-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>Priority</div>
-          <div class="gantt-prop-value">${task.priority ? `<span>${escHtml(task.priority)}</span>` : `<span class="gantt-prop-empty" data-action="open-plane">Empty</span>`}</div>
+          <div class="gantt-prop-value">${task.priority ? `<span>${escHtml(task.priority)}</span>` : `<button class="gantt-prop-empty-btn" data-action="open-plane">↗ Add in Plane</button>`}</div>
         </div>
       </div>
       <div class="gantt-sidebar-desc">
@@ -587,7 +606,8 @@ export function createEditSidebar(opts) {
       } else {
         item.innerHTML = `${opt.icon} ${opt.label}${opt.value === currentVal ? '<span class="check">✓</span>' : ''}`
       }
-      item.onclick = () => {
+      item.onclick = (e) => {
+        e.stopPropagation()
         if (type === 'type') task.type = opt.value
         else task.status = opt.value
         render()
@@ -597,15 +617,17 @@ export function createEditSidebar(opts) {
 
     trigger.parentElement.appendChild(menu)
 
-    // Close on outside click
-    setTimeout(() => {
-      document.addEventListener('click', function handler(e) {
-        if (!menu.contains(e.target) && e.target !== trigger) {
-          menu.remove()
-          document.removeEventListener('click', handler)
-        }
-      })
-    }, 0)
+    // Close on any click outside the menu
+    function closeHandler(e) {
+      if (!menu.contains(e.target)) {
+        menu.remove()
+        document.removeEventListener('mousedown', closeHandler, true)
+      }
+    }
+    // Use mousedown + capture to fire before the button's click
+    requestAnimationFrame(() => {
+      document.addEventListener('mousedown', closeHandler, true)
+    })
   }
 
   function openInPlane() {
@@ -623,27 +645,47 @@ export function createEditSidebar(opts) {
     if (saveBtn) { saveBtn.textContent = 'Saving...'; saveBtn.disabled = true }
 
     try {
-      // PATCH dates + description to Plane via our API
-      if (task.plane_type !== 'module' && task.plane_id) {
-        await fetch(`${apiBase}/api/projects/${project}/issues/${task.plane_id}/dates`, {
-          method: 'PATCH',
+      if (task._isNew) {
+        // Create new task in Plane
+        const resp = await fetch(`${apiBase}/api/projects/${project}/issues`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            name: task.text || 'Untitled',
             start_date: task.start_date || null,
             target_date: task.end_date || null,
           }),
         })
-      }
+        if (resp.ok) {
+          // Reload gantt to show new task
+          if (window.gantt) {
+            window.gantt.clearAll()
+            window.gantt.load(`${apiBase}/api/projects/${project}/data`)
+          }
+        }
+      } else {
+        // Update existing — PATCH dates
+        if (task.plane_type !== 'module' && task.plane_id) {
+          await fetch(`${apiBase}/api/projects/${project}/issues/${task.plane_id}/dates`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              start_date: task.start_date || null,
+              target_date: task.end_date || null,
+            }),
+          })
+        }
 
-      // Update gantt locally
-      if (window.gantt && window.gantt.isTaskExists(task.id)) {
-        const gt = window.gantt.getTask(task.id)
-        gt.text = task.plane_type === 'module' ? '📦 ' + task.text : task.text
-        gt.status = task.status
-        gt.type = task.type
-        if (task.start_date) gt.start_date = new Date(task.start_date)
-        if (task.end_date) gt.end_date = new Date(task.end_date)
-        window.gantt.updateTask(task.id)
+        // Update gantt locally
+        if (window.gantt && window.gantt.isTaskExists(task.id)) {
+          const gt = window.gantt.getTask(task.id)
+          gt.text = task.plane_type === 'module' ? '📦 ' + task.text : task.text
+          gt.status = task.status
+          gt.type = task.type
+          if (task.start_date) gt.start_date = new Date(task.start_date)
+          if (task.end_date) gt.end_date = new Date(task.end_date)
+          window.gantt.updateTask(task.id)
+        }
       }
 
       close()
