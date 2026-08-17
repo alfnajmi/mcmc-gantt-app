@@ -43,10 +43,12 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 def _compute_duration(start: datetime | None, end: datetime | None) -> int:
-    """Compute duration in days between two dates. Minimum 1 day."""
+    """Compute duration in days between two dates. Returns 0 for same-day (milestone)."""
     if not start or not end:
         return 1
     delta = (end - start).days
+    if delta == 0:
+        return 0  # Same day = milestone
     return max(delta, 1)
 
 
