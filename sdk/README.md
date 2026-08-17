@@ -4,6 +4,10 @@ Embeddable Gantt chart component for any web application. No iframe needed — r
 
 Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
 
+> Documentation last reviewed: 17 August 2026
+>
+> This document is the integration source of truth for SDK consumers.
+
 ## Features (v1.3.10)
 
 - Task detail popup on bar click (Task/Project badge, status, dates, assignee, duration)
@@ -22,6 +26,20 @@ Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
 - Floating zoom-in/zoom-out controls for day, week, month, and year scales
 - Collapsible task table with remembered visibility
 - Editable mode (drag to resize/move bars, DataProcessor syncs to API)
+
+## Data model and compatibility
+
+The SDK follows Plane semantics:
+
+| SDK type | Plane entity | Behaviour |
+|----------|--------------|-----------|
+| `project` | Module | Standalone group that can own tasks |
+| `task` | Work item | May have the same start and due date |
+| `milestone` | Work item | Explicit persisted type rendered as a diamond |
+
+Do not infer milestones from date equality. Consumers must preserve the `type`/`gantt_type` supplied by the API; a one-day task and a milestone can both have equal dates.
+
+For the full management experience—including task-to-module promotion, the protected three-dot delete action, Undo, and the 30-day Trash drawer—use `GanttView`. The bare renderer exposes chart controls but does not add the full toolbar and management panels.
 
 ## Quick start (for portal teams)
 
@@ -250,13 +268,14 @@ cd sdk
 npm publish
 ```
 
-Ensure you've authenticated:
+Authenticate through an environment variable or CI secret; do not commit the token:
 
 ```bash
-npm config set //devgithub.mcmc.gov.my/_registry/npm/:_authToken <YOUR_GITHUB_TOKEN>
+export NPM_TOKEN=<package-token>
+npm config set //devgithub.mcmc.gov.my/_registry/npm/:_authToken "$NPM_TOKEN"
 ```
 
-The token needs `write:packages` scope.
+Publishing requires `write:packages`; installation only requires `read:packages`.
 
 ## How it works
 

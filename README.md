@@ -1,166 +1,148 @@
-# Gantt API
+# Plane-powered Gantt API and SDK
 
-Lightweight API that serves dhtmlxGantt-compatible data from **Plane.so**. No database required — Plane is the single source of truth for all project/task data.
+Plane-backed Gantt integration for PERSADA and other MCMC portals. The FastAPI service translates Plane data into dhtmlxGantt-compatible JSON; the `@mcmc/gantt-chart` SDK renders and manages that data directly inside a host application.
+
+Plane is the source of truth for projects, modules, work items, dates, hierarchy, and status. This service has no application database. Redis is optional for response caching and required for durable recoverable-trash records.
+
+> Documentation last reviewed: 17 August 2026
+>
+> Current SDK version: `1.3.10`
 
 ## Architecture
 
-```
-┌─────────────────┐         ┌─────────────────┐         ┌──────────────┐
-│  persada-web    │         │  gantt-api       │         │  Plane.so    │
-│  (Vue 3 + SDK) │◄──API──►│  (FastAPI)       │◄──API──►│  (self-host) │
-│  dhtmlxGantt    │         │  No database     │         │              │
-└─────────────────┘         └─────────────────┘         └──────────────┘
+```text
+persada-web or another portal
+        │ @mcmc/gantt-chart
+        ▼
+Gantt API (FastAPI, port 8200)
+        ├── data transformation / writes ──► Plane
+        └── cache + trash registry ────────► Redis
 ```
 
-- **Plane** → admin portal (create projects, issues, modules, set dates)
-- **Gantt API** → transforms Plane data into dhtmlxGantt format
-- **persada-web** → renders the Gantt chart with the `@mcmc/gantt-chart` SDK
+## Plane-to-Gantt model
 
-## Quick start
+| Gantt concept | Plane source | Notes |
+|---|---|---|
+| Project | Module | A standalone grouping with its own tasks. |
+| Task | Work item | Can have equal start and due dates and still remain a task. |
+| Milestone | Work item | Uses an explicit persisted Gantt type and renders as a diamond. |
+| Parent/child task | Work-item hierarchy | Preserved when reading and writing. |
+
+Type is explicit: the API and SDK do not infer a milestone only because `start_date == end_date`.
+
+Promoting a task to Project creates a Plane Module, moves its direct subtasks into the new module, removes their old parent relationship, and archives the source task. Compensating writes restore the original hierarchy if promotion fails part-way through.
+
+## Current capabilities
+
+- Read Plane projects, modules, work items, hierarchy, and dependency links.
+- Create and update tasks, milestones, and Plane modules.
+- Persist drag/resize changes and row order back to Plane.
+- Promote a long-running task into a standalone Plane module.
+- Move tasks, milestones, and projects to recoverable Trash.
+- Restore trashed items, delete them permanently, or purge them automatically after 30 days.
+- Render pastel status colours, adaptive external labels, weekend shading, today marker, task-table toggle, and timeline zoom controls.
+
+The detailed portal integration contract is maintained in [`sdk/README.md`](sdk/README.md).
+
+## Quick start with Docker
+
+```bash
+cp .env.example .env
+# Add the Plane URL, personal access token, and workspace slug.
+docker compose up --build
+curl http://localhost:8200/api/health
+```
+
+Docker Compose starts the API and Redis. The API container listens on `8000`; the host binding is `8200`.
+
+## Run the API directly
 
 ```bash
 cd backend
-
-# Create virtualenv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Configure
-cp ../.env.example ../.env
-# Edit ../.env with your Plane credentials
-
-# Run
-export $(grep -v '^#' ../.env | grep -v '^\s*$' | xargs)
+set -a
+source ../.env
+set +a
 uvicorn app.main:app --reload --port 8200
 ```
 
 ## Environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PLANE_BASE_URL` | Yes | Plane instance URL (e.g., `https://plane-digd.mcmc.gov.my`) |
-| `PLANE_API_TOKEN` | Yes | Personal Access Token from Plane |
-| `PLANE_WORKSPACE_SLUG` | Yes | Workspace slug from Plane URL |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins |
-| `REDIS_URL` | No | Redis URL for caching (optional) |
-| `CACHE_TTL_SECONDS` | No | Cache TTL in seconds (default: 300) |
-| `LOG_LEVEL` | No | Logging level (default: INFO) |
+| Variable | Required | Purpose |
+|---|---:|---|
+| `PLANE_BASE_URL` | Yes | Plane instance origin, without a trailing slash. |
+| `PLANE_API_TOKEN` | Yes | Plane personal access token. |
+| `PLANE_WORKSPACE_SLUG` | Yes | Workspace slug from the Plane URL. |
+| `CORS_ORIGINS` | No | Comma-separated browser origins. |
+| `REDIS_URL` | No | Redis connection URL. Required for recoverable Trash. |
+| `CACHE_TTL_SECONDS` | No | Response-cache lifetime; defaults to 300 seconds. |
+| `LOG_LEVEL` | No | API log level; defaults to `INFO`. |
+
+Never commit `.env`, Plane tokens, or registry tokens.
 
 ## API endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check + Plane connectivity |
-| GET | `/api/projects` | List all Plane projects |
-| GET | `/api/projects/{id}` | Get project metadata |
-| GET | `/api/projects/{id}/data` | Gantt chart data (tasks + links) |
-| PUT | `/api/projects/{id}/task/{tid}` | Update task dates (DataProcessor) |
-| PATCH | `/api/projects/{id}/issues/{iid}/dates` | Update issue dates |
-| POST | `/api/projects/{id}/reorder` | Persist sort order changes |
-| POST | `/api/cache/invalidate` | Flush cached data |
+All project parameters accept a Plane UUID or project identifier where resolution is supported.
 
-The `/data` endpoint accepts either a UUID or project identifier (e.g., `persada`, `NASP`).
+### Read and update
 
-Query parameters for `/data`:
-- `include_cycles=true` — show cycles as group bars
-- `include_modules=true` — show modules as group bars
-- `include_relations=true` — fetch dependency links
-- `bypass_cache=false` — skip Redis cache
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | API and Plane connectivity health. |
+| `GET` | `/api/projects` | List Plane projects. |
+| `GET` | `/api/projects/{project}` | Get project metadata. |
+| `GET` | `/api/projects/{project}/data` | Return Gantt tasks and dependency links. |
+| `PUT` | `/api/projects/{project}/task/{task}` | dhtmlx DataProcessor update endpoint. |
+| `PATCH` | `/api/projects/{project}/issues/{issue}/dates` | Update dates and explicit Gantt type. |
+| `POST` | `/api/projects/{project}/reorder` | Persist row order. |
+| `POST` | `/api/cache/invalidate` | Clear one project cache or all cached data. |
 
-## SDK integration
+`GET .../data` supports `include_cycles`, `include_modules`, `include_relations`, and `bypass_cache` query parameters.
 
-The `@mcmc/gantt-chart` SDK allows any web portal to embed a Gantt chart that reads from this API. The SDK handles dhtmlxGantt loading, rendering, and DataProcessor communication.
+### Create, modules, and promotion
 
-### Installation
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/projects/{project}/issues` | Create a Task or Milestone. |
+| `POST` | `/api/projects/{project}/modules` | Create a Plane Module/Project. |
+| `PATCH` | `/api/projects/{project}/modules/{module}` | Update a Plane Module/Project. |
+| `POST` | `/api/projects/{project}/issues/{issue}/promote-to-module` | Promote a work item and move its direct subtasks. |
 
-```bash
-npm install @mcmc/gantt-chart
-```
+### Recoverable deletion
 
-Registry setup (`.npmrc`):
-```
-@mcmc:registry=https://devgithub.mcmc.gov.my/_registry/npm/
-//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}
-```
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/projects/{project}/trash` | List items deleted through the Gantt. |
+| `POST` | `/api/projects/{project}/trash/{entity_type}/{entity}` | Archive an issue/module and register it for recovery. |
+| `POST` | `/api/projects/{project}/trash/{entity_type}/{entity}/restore` | Restore an item and its recorded context. |
+| `DELETE` | `/api/projects/{project}/trash/{entity_type}/{entity}?confirm=true` | Permanently delete one trashed item. |
 
-### Option 1: Vue 3 component
+Direct permanent-delete endpoints also require `confirm=true`. The SDK normally uses the recoverable flow: three-dot menu → Delete → Undo or Trash management.
 
-```vue
-<script setup>
-import { GanttChart } from '@mcmc/gantt-chart/vue'
-</script>
+Trash metadata is stored in Redis independently from the normal response cache. Without Redis, normal Gantt reads and writes still work, but recoverable deletion returns a service-unavailable response.
 
-<template>
-  <GanttChart
-    project="persada"
-    api-base="https://gantt.mcmc.gov.my"
-    :editable="true"
-    scale="week"
-    height="80vh"
-    @task-click="handleClick"
-    @task-change="handleChange"
-  />
-</template>
-```
-
-### Option 2: Web Component (any framework or plain HTML)
-
-```html
-<mcmc-gantt
-  project="persada"
-  api="https://gantt.mcmc.gov.my"
-  editable
-  height="80vh"
-></mcmc-gantt>
-<script src="https://gantt.mcmc.gov.my/sdk/gantt-element.js" type="module"></script>
-```
-
-### Option 3: Imperative API
-
-```js
-import { mountGantt } from '@mcmc/gantt-chart'
-
-const controller = mountGantt({
-  container: document.getElementById('gantt'),
-  project: 'persada',
-  apiBase: 'https://gantt.mcmc.gov.my',
-  editable: true,
-  scale: 'month',
-  onTaskClick: (task) => console.log(task),
-  onTaskChange: (task) => console.log('updated', task),
-})
-
-// Later: controller.destroy()
-```
-
-### Props / Attributes
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `project` | string | — | Project UUID or identifier (e.g., `persada`, `NASP`) |
-| `api-base` | string | `''` | Gantt API base URL |
-| `editable` | boolean | `false` | Allow drag-to-edit (dates sync back to Plane) |
-| `scale` | string | `'month'` | Initial zoom: `day`, `week`, `month`, `year` |
-| `height` | string | `'600px'` | Container height |
-
-### SDK development
-
-The SDK source lives in `sdk/`. To build and publish:
+## SDK development
 
 ```bash
 cd sdk
-npm install
-npm run build       # outputs to sdk/dist/
-npm publish         # publishes to @mcmc registry
+npm ci
+npm run build
 ```
 
-## Caching
+The package publishes to the private MCMC GitHub Packages registry. Versioning and consumer examples are documented in [`sdk/README.md`](sdk/README.md).
 
-If `REDIS_URL` is set, API responses are cached to reduce Plane API load:
-- Project list: cached for `CACHE_TTL_SECONDS`
-- Project data: cached per project + query params
-- Cache is auto-invalidated on write operations (date changes, reorder)
-- Manual flush: `POST /api/cache/invalidate`
+## Verification
 
-If Redis is unavailable, the API works without caching (graceful degradation).
+```bash
+cd backend
+pytest
+
+cd ../sdk
+npm ci
+npm run build
+```
+
+Tests cover explicit task/milestone typing, Plane transformation, task-to-module promotion, rollback behavior, and recoverable Trash.
