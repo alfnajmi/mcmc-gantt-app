@@ -283,6 +283,26 @@ function capitalize(s) { return s ? s.split(' ').map(w => w[0].toUpperCase() + w
 // Toolbar actions
 function handleToday() { if (window.gantt) window.gantt.showDate(new Date()) }
 function handleAutoFit() { if (window.gantt) { window.gantt.config.fit_tasks = true; window.gantt.render() } }
+function handleExport() {
+  if (!window.gantt) return
+  const tasks = []
+  window.gantt.eachTask(function(task) {
+    if (task.plane_type === 'module' || task.plane_type === 'cycle') return
+    const start = task.start_date instanceof Date ? task.start_date.toISOString().split('T')[0] : ''
+    const end = task.end_date instanceof Date ? task.end_date.toISOString().split('T')[0] : ''
+    tasks.push([task.text || '', task.status || '', task.assignee || '', start, end, task.duration || '', task.priority || ''])
+  })
+  if (!tasks.length) return
+  const headers = ['Name','Status','Assignee','Start Date','End Date','Duration (days)','Priority']
+  const csv = [headers.join(','), ...tasks.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${props.project}_export_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <template>
@@ -318,6 +338,7 @@ function handleAutoFit() { if (window.gantt) { window.gantt.config.fit_tasks = t
           </div>
         </div>
         <button class="gv-btn" @click="handleAutoFit">Auto Fit</button>
+        <button class="gv-btn" @click="handleExport">Export</button>
       </div>
       <div class="gv-toolbar-right">
         <button v-if="showFilter" class="gv-btn" :class="{ active: filterOpen || activeFilterCount > 0 }" @click="filterOpen = !filterOpen">
