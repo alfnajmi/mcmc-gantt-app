@@ -13,13 +13,14 @@
  *   height   — container height (default: 600px)
  *   show-grid — set to "false" to hide the task table (default: true)
  *   show-zoom-controls — set to "false" to hide floating zoom controls (default: true)
+ *   scale-height — total timeline-header height in pixels (default: 64)
  */
 
 import { mountGantt } from './core.js'
 
 class McmcGantt extends HTMLElement {
   static get observedAttributes() {
-    return ['project', 'api', 'editable', 'scale', 'height', 'show-grid', 'show-zoom-controls']
+    return ['project', 'api', 'editable', 'scale', 'height', 'show-grid', 'show-zoom-controls', 'scale-height']
   }
 
   constructor() {
@@ -58,6 +59,8 @@ class McmcGantt extends HTMLElement {
     const height = this.getAttribute('height') || '600px'
     const showGrid = this.getAttribute('show-grid') !== 'false'
     const showZoomControls = this.getAttribute('show-zoom-controls') !== 'false'
+    const requestedScaleHeight = Number(this.getAttribute('scale-height'))
+    const scaleHeight = requestedScaleHeight > 0 ? requestedScaleHeight : 64
 
     // Build shadow DOM
     this._shadow.innerHTML = `
@@ -106,6 +109,7 @@ class McmcGantt extends HTMLElement {
       scale,
       showGrid,
       showZoomControls,
+      scaleHeight,
       onTaskClick: (task) => {
         this.dispatchEvent(new CustomEvent('task-click', { detail: task, bubbles: true }))
       },

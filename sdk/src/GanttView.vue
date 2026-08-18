@@ -23,6 +23,7 @@
  *   showClosed     — initial state for completed tasks (default: true)
  *   showTaskTable  — initial task-table visibility (default: true)
  *   showZoomControls — show floating timeline zoom controls (default: true)
+ *   scaleHeight    — total timeline-header height (default: 64px)
  */
 
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
@@ -43,6 +44,7 @@ const props = defineProps({
   showClosed: { type: Boolean, default: true },
   showTaskTable: { type: Boolean, default: true },
   showZoomControls: { type: Boolean, default: true },
+  scaleHeight: { type: Number, default: 64 },
   showProjectSelector: { type: Boolean, default: false },
 })
 
@@ -146,6 +148,7 @@ function initGanttWithProject(projectId) {
     showPopup: true,
     showGrid: taskTableVisible.value,
     showZoomControls: props.showZoomControls,
+    scaleHeight: props.scaleHeight,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
     onScaleChange: (level) => { currentScale.value = level },
@@ -240,6 +243,7 @@ function initGantt() {
     showPopup: true,
     showGrid: taskTableVisible.value,
     showZoomControls: props.showZoomControls,
+    scaleHeight: props.scaleHeight,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
     onScaleChange: (level) => { currentScale.value = level },

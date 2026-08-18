@@ -4,17 +4,17 @@ Embeddable Gantt chart component for any web application. No iframe needed — r
 
 Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
 
-> Documentation last reviewed: 17 August 2026
+> Documentation last reviewed: 18 August 2026
 >
 > This document is the integration source of truth for SDK consumers.
 
-## Features (v1.3.10)
+## Features (v1.3.11)
 
 - Task detail popup on bar click (Task/Project badge, status, dates, assignee, duration)
 - "View in Plane" button in popup (links directly to issue/module in Plane)
 - Pastel status-based bar coloring (complete → mint, in progress → blue, planning → lavender, to do → slate)
 - Weekend diagonal striping on day-level scales
-- Today line (dashed pink) + scale header highlight
+- Plane-style current-time line (solid red with a circular cap) + scale header highlight
 - Row drag-to-reorder with Plane sync
 - Project-type bars for modules/cycles (thin green group bars)
 - Milestone markers
@@ -24,6 +24,9 @@ Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
 - Trash drawer with Restore, Delete forever, and automatic 30-day cleanup
 - Adaptive task labels: outside-right when possible, inside long bars or outside-left near viewport edges
 - Floating zoom-in/zoom-out controls for day, week, month, and year scales
+- Roomier two-band timeline headers (64px by default, configurable)
+- Timeline grid and weekend shading continue below the final task
+- Subtle row separators in the task table without lines across the timeline
 - Collapsible task table with remembered visibility
 - Editable mode (drag to resize/move bars, DataProcessor syncs to API)
 
@@ -129,6 +132,7 @@ Includes toolbar, filter, fields panel, edit sidebar, and task popup — zero ad
 | `showClosed` | boolean | `true` | Initial closed toggle state |
 | `showTaskTable` | boolean | `true` | Initial task-table visibility; the toolbar toggle remembers the user's choice |
 | `showZoomControls` | boolean | `true` | Show floating zoom-in/zoom-out controls |
+| `scaleHeight` | number | `64` | Total height of the timeline scale header |
 
 ### Alternative: GanttChart (bare renderer)
 
@@ -146,6 +150,7 @@ For portals that want full control over the toolbar and surrounding UI:
   editable
   show-grid="true"
   show-zoom-controls="true"
+  scale-height="64"
   height="80vh"
 ></mcmc-gantt>
 
@@ -169,6 +174,7 @@ import GanttChart from '@mcmc/gantt-chart/vue'
     :editable="true"
     scale="week"
     :show-zoom-controls="true"
+    :scale-height="64"
     height="80vh"
     @scale-change="handleScaleChange"
     @task-click="handleClick"
@@ -198,6 +204,7 @@ const gantt = mountGantt({
   showPopup: true,  // default: true
   showGrid: true,   // default: true
   showZoomControls: true, // default: false in the bare API
+  scaleHeight: 64,
 
   // Callbacks
   onTaskClick: (task) => console.log(task),
@@ -227,6 +234,7 @@ gantt.destroy()
 | `showPopup` | boolean | `true` | Show task detail popup on bar click |
 | `showGrid` | boolean | `true` | Show the task table beside the timeline |
 | `showZoomControls` | boolean | `false` | Show floating timeline zoom controls |
+| `scaleHeight` | number | `64` | Total height of the timeline scale header |
 | `onTaskClick` | function | `null` | Callback when task bar is clicked |
 | `onTaskChange` | function | `null` | Callback after task is updated (drag/resize) |
 | `onScaleChange` | function | `null` | Callback after zoom controls change the scale |
