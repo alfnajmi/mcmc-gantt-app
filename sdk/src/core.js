@@ -37,15 +37,24 @@ const DEFAULT_COLUMNS = [
 
 const EDITABLE_COLUMNS = [...DEFAULT_COLUMNS, { name: 'add', width: 36 }]
 
+function todayScaleCellClass(date) {
+  var today = new Date()
+  return date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+    ? 'scale-today'
+    : ''
+}
+
 const SCALES = {
   year: [
     { unit: 'year', step: 1, format: '%Y' },
     { unit: 'month', step: 3, format: '%M' },
   ],
-  day: [{ unit: 'day', step: 1, format: '%d %M' }],
+  day: [{ unit: 'day', step: 1, format: '%d %M', css: todayScaleCellClass }],
   week: [
     { unit: 'week', step: 1, format: 'Week %W' },
-    { unit: 'day', step: 1, format: '%d %D' },
+    { unit: 'day', step: 1, format: '%d %D', css: todayScaleCellClass },
   ],
   month: [
     { unit: 'month', step: 1, format: '%F %Y' },
@@ -77,7 +86,8 @@ const GANTT_CUSTOM_CSS = `
     border-bottom: 1px solid #e2e8f0 !important;
   }
   .gantt_row {
-    border-bottom: none !important;
+    /* Plane-style row separators belong to the task table only. */
+    border-bottom: 1px solid #eef2f7 !important;
   }
   .gantt_row:hover,
   .gantt_row.hover {
@@ -93,6 +103,14 @@ const GANTT_CUSTOM_CSS = `
   .gantt_task_row:hover,
   .gantt_task_row.hover {
     background: #f1f5f9 !important;
+  }
+  /* DHTMLX uses one viewport-sized pseudo row to continue the timeline
+     background below the final task. It must never behave like a task. */
+  .gantt_task_row[data-task-id="timeline_placeholder_task"],
+  .gantt_task_row[data-task-id="timeline_placeholder_task"]:hover,
+  .gantt_task_row[data-task-id="timeline_placeholder_task"].hover {
+    background-color: transparent !important;
+    pointer-events: none !important;
   }
   .gantt_task_row.gantt_selected {
     background: #eff6ff !important;
@@ -243,28 +261,42 @@ const GANTT_CUSTOM_CSS = `
     background-color: rgba(241, 245, 249, 0.6) !important;
   }
 
-  /* --- Today line — dashed pink left border --- */
+  /* Today cells remain available as semantic hooks; the visible indicator is
+     one continuous overlay positioned at the current time. */
   .today-cell {
-    border-left: 2px dashed #f9a8d4 !important;
+    border-left: 0 !important;
+  }
+  .mcmc-gantt-today-line {
+    position: absolute;
+    width: 1px;
+    background: #ef4444;
+    z-index: 8;
+    pointer-events: none;
+  }
+  .mcmc-gantt-today-line::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    transform: translateX(-50%);
   }
 
   /* Today's date highlighted in scale header */
   .gantt_scale_cell.scale-today {
-    color: #be185d !important;
+    color: #ffffff !important;
     font-weight: 700 !important;
     position: relative;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='54' height='24' viewBox='0 0 54 24'%3E%3Crect width='54' height='24' rx='5' fill='%23ef4444'/%3E%3C/svg%3E") !important;
+    background-position: center !important;
+    background-size: 54px 24px !important;
+    background-repeat: no-repeat !important;
   }
   .gantt_scale_cell.scale-today::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: rgba(232, 67, 147, 0.12);
-    z-index: -1;
+    display: none !important;
   }
 
   /* Hide default marker (using cell border approach instead) */
@@ -635,6 +667,7 @@ const GANTT_CUSTOM_CSS = `
  * @param {boolean} [options.showPopup=true] - Show task detail popup on bar click
  * @param {boolean} [options.showGrid=true] - Show the task table beside the timeline
  * @param {boolean} [options.showZoomControls=false] - Show floating timeline zoom controls
+ * @param {number} [options.scaleHeight=64] - Total height of the timeline scale header
  * @param {Function} [options.onTaskClick] - Callback when task is clicked
  * @param {Function} [options.onTaskChange] - Callback when task is updated
  * @param {Function} [options.onScaleChange] - Callback when zoom controls change the scale
@@ -653,6 +686,7 @@ export function mountGantt(options) {
     showPopup = true,
     showGrid = true,
     showZoomControls = false,
+    scaleHeight = 64,
     onTaskClick = null,
     onTaskChange = null,
     onScaleChange = null,
@@ -669,6 +703,8 @@ export function mountGantt(options) {
   let dpInstance = null
   let sidebar = null
   let zoomControlsEl = null
+  let todayLineEl = null
+  let todayLineCleanup = null
   let labelLayoutFrame = null
   let labelLayoutCleanup = null
   let gridVisible = showGrid !== false
@@ -724,6 +760,10 @@ export function mountGantt(options) {
     gantt.config.fit_tasks = true
     gantt.config.row_height = 36
     gantt.config.bar_height = 22
+    gantt.config.scale_height = scaleHeight
+    // Continue the actual timeline grid and custom cell backgrounds through
+    // unused viewport space without creating fake tasks or extra scrolling.
+    gantt.config.timeline_placeholder = { height: 0 }
     gantt.config.grid_resize = true
     gantt.config.show_grid = gridVisible
     gantt.config.columns = editable ? EDITABLE_COLUMNS : DEFAULT_COLUMNS
@@ -797,17 +837,7 @@ export function mountGantt(options) {
     }
 
     // Highlight today in scale header
-    gantt.templates.scale_cell_class = function (date) {
-      var today = new Date()
-      if (
-        date.getFullYear() === today.getFullYear() &&
-        date.getMonth() === today.getMonth() &&
-        date.getDate() === today.getDate()
-      ) {
-        return 'scale-today'
-      }
-      return ''
-    }
+    gantt.templates.scale_cell_class = todayScaleCellClass
 
     // Event callbacks
     if (onTaskClick) {
@@ -978,6 +1008,54 @@ export function mountGantt(options) {
     const apiUrl = `${apiBase}/api/projects/${project}`
     gantt.init(container)
 
+    // Plane-style current-time indicator: one uninterrupted line across the
+    // viewport, positioned within today's cell using the actual current time.
+    function renderTodayLine() {
+      if (destroyed) return
+      const dataArea = gantt.$task_data || container.querySelector('.gantt_data_area')
+      const overlayHost = gantt.$container || container
+      if (!dataArea || !overlayHost) return
+
+      if (!todayLineEl || todayLineEl.parentNode !== overlayHost) {
+        if (todayLineEl) todayLineEl.remove()
+        todayLineEl = document.createElement('div')
+        todayLineEl.className = 'mcmc-gantt-today-line'
+        todayLineEl.setAttribute('aria-hidden', 'true')
+        overlayHost.appendChild(todayLineEl)
+      }
+
+      const now = new Date()
+      const state = gantt.getState()
+      if (!state.min_date || !state.max_date || now < state.min_date || now > state.max_date) {
+        todayLineEl.style.display = 'none'
+        return
+      }
+
+      const hostRect = overlayHost.getBoundingClientRect()
+      const dataRect = dataArea.getBoundingClientRect()
+      // dataRect.left already reflects DHTMLX's horizontal scroll transform.
+      const left = dataRect.left - hostRect.left + gantt.posFromDate(now)
+      const dataLeft = dataRect.left - hostRect.left
+      const dataRight = dataRect.right - hostRect.left
+
+      if (left < dataLeft || left > dataRight) {
+        todayLineEl.style.display = 'none'
+        return
+      }
+
+      todayLineEl.style.display = ''
+      todayLineEl.style.left = `${Math.round(left)}px`
+      todayLineEl.style.top = `${Math.round(dataRect.top - hostRect.top)}px`
+      todayLineEl.style.height = `${Math.round(dataRect.height)}px`
+    }
+
+    gantt.attachEvent('onGanttRender', () => {
+      window.requestAnimationFrame(renderTodayLine)
+    })
+    gantt.attachEvent('onGanttScroll', renderTodayLine)
+    window.addEventListener('resize', renderTodayLine)
+    todayLineCleanup = () => window.removeEventListener('resize', renderTodayLine)
+
     // Keep external task labels readable at every zoom level. Labels stay to
     // the right when possible, move inside long visible bars near the viewport
     // edge, and move to the left of short bars when the right side is clipped.
@@ -1112,6 +1190,7 @@ export function mountGantt(options) {
     gantt.load(`${apiUrl}/data`, () => {
       gantt.showDate(new Date())
       scheduleTaskLabelLayout()
+      renderTodayLine()
       // Inject Add Task button after data loads
       if (editable) injectAddTaskButton()
     })
@@ -1214,6 +1293,8 @@ export function mountGantt(options) {
       if (dpInstance) dpInstance.destructor()
       if (sidebar) sidebar.destroy()
       if (zoomControlsEl) zoomControlsEl.remove()
+      if (todayLineEl) todayLineEl.remove()
+      if (todayLineCleanup) todayLineCleanup()
       if (labelLayoutCleanup) labelLayoutCleanup()
       if (window.gantt) window.gantt.destructor()
     },

@@ -17,6 +17,7 @@
  *   showPopup      — show task detail popup on bar click (default: true)
  *   showGrid       — show the task table beside the timeline (default: true)
  *   showZoomControls — show floating timeline zoom controls (default: false)
+ *   scaleHeight    — total timeline-header height (default: 64px)
  *
  * Events:
  *   task-click  — emitted with task object when a task bar is clicked
@@ -39,6 +40,7 @@ const props = defineProps({
   showPopup: { type: Boolean, default: true },
   showGrid: { type: Boolean, default: true },
   showZoomControls: { type: Boolean, default: false },
+  scaleHeight: { type: Number, default: 64 },
 })
 
 const emit = defineEmits(['task-click', 'task-change', 'scale-change'])
@@ -85,6 +87,7 @@ function initGantt() {
     showPopup: props.showPopup,
     showGrid: props.showGrid,
     showZoomControls: props.showZoomControls,
+    scaleHeight: props.scaleHeight,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
     onScaleChange: (level) => emit('scale-change', level),
