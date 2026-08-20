@@ -3,18 +3,26 @@
  * <GanttChart> — Vue 3 wrapper around the core Gantt engine.
  *
  * Usage:
- *   <GanttChart project="persada-phase-1" :editable="true" @task-click="handle" />
+ *   <GanttChart project="persada" :editable="true" plane-url="https://plane.example.com" />
  *
  * Props:
- *   project  — project slug (required)
- *   apiBase  — API base URL (default: '')
- *   editable — allow editing (default: false)
- *   scale    — initial zoom: day|week|month (default: month)
- *   height   — container height (default: '600px')
+ *   project        — project slug or UUID (required)
+ *   apiBase        — API base URL (default: '')
+ *   editable       — allow editing (default: false)
+ *   scale          — initial zoom: day|week|month|year (default: month)
+ *   height         — container height (default: '600px')
+ *   planeUrl       — Plane instance URL (enables "View in Plane" popup button)
+ *   workspaceSlug  — Plane workspace slug
+ *   projectId      — Plane project UUID (for Plane links)
+ *   showPopup      — show task detail popup on bar click (default: true)
+ *   showGrid       — show the task table beside the timeline (default: true)
+ *   showZoomControls — show floating timeline zoom controls (default: false)
+ *   scaleHeight    — total timeline-header height (default: 64px)
  *
  * Events:
- *   task-click  — emitted with task object when a task is clicked
- *   task-change — emitted with task object after update
+ *   task-click  — emitted with task object when a task bar is clicked
+ *   task-change — emitted with task object after update (drag/resize)
+ *   scale-change — emitted with day|week|month|year after a zoom button is clicked
  */
 
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
@@ -26,9 +34,16 @@ const props = defineProps({
   editable: { type: Boolean, default: false },
   scale: { type: String, default: 'month' },
   height: { type: String, default: '600px' },
+  planeUrl: { type: String, default: '' },
+  workspaceSlug: { type: String, default: '' },
+  projectId: { type: String, default: '' },
+  showPopup: { type: Boolean, default: true },
+  showGrid: { type: Boolean, default: true },
+  showZoomControls: { type: Boolean, default: false },
+  scaleHeight: { type: Number, default: 64 },
 })
 
-const emit = defineEmits(['task-click', 'task-change'])
+const emit = defineEmits(['task-click', 'task-change', 'scale-change'])
 
 const containerRef = ref(null)
 let controller = null
@@ -48,6 +63,10 @@ watch(() => props.scale, (newScale) => {
   if (controller) controller.setScale(newScale)
 })
 
+watch(() => props.showGrid, (visible) => {
+  if (controller) controller.setGridVisible(visible)
+})
+
 watch(() => props.project, () => {
   if (controller) controller.destroy()
   initGantt()
@@ -62,8 +81,16 @@ function initGantt() {
     apiBase: props.apiBase,
     editable: props.editable,
     scale: props.scale,
+    planeUrl: props.planeUrl,
+    workspaceSlug: props.workspaceSlug,
+    projectId: props.projectId,
+    showPopup: props.showPopup,
+    showGrid: props.showGrid,
+    showZoomControls: props.showZoomControls,
+    scaleHeight: props.scaleHeight,
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
+    onScaleChange: (level) => emit('scale-change', level),
   })
 }
 </script>
@@ -76,9 +103,5 @@ function initGantt() {
 .gantt-container {
   width: 100%;
   position: relative;
-}
-:deep(.gantt-today-cell) {
-  background: rgba(229, 57, 53, 0.08);
-  border-left: 2px solid #e53935;
 }
 </style>

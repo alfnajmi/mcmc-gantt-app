@@ -19,6 +19,11 @@ jobs:
       - name: Fix workspace permissions
         run: sudo chown -R $(id -u):$(id -g) "${{ github.workspace }}" || true
 
+      - name: Free disk space
+        run: |
+          docker system prune -af --volumes || true
+          sudo rm -rf /tmp/*.tar || true
+
       - name: Checkout code
         uses: actions/checkout@v4
 

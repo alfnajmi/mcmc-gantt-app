@@ -1,330 +1,148 @@
-# Gantt Platform
+# Plane-powered Gantt API and SDK
 
-Multi-project Gantt chart platform. Create projects, import CSV, and embed interactive Gantt charts in any portal or website.
+Plane-backed Gantt integration for PERSADA and other MCMC portals. The FastAPI service translates Plane data into dhtmlxGantt-compatible JSON; the `@mcmc/gantt-chart` SDK renders and manages that data directly inside a host application.
 
----
+Plane is the source of truth for projects, modules, work items, dates, hierarchy, and status. This service has no application database. Redis is optional for response caching and required for durable recoverable-trash records.
 
-## How it works
+> Documentation last reviewed: 17 August 2026
+>
+> Current SDK version: `1.3.10`
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Any Portal / Website                                                    │
-│                                                                          │
-│  Option A (recommended): SDK — renders in your page's DOM                │
-│  <mcmc-gantt project="my-project" api="http://<GANTT_HOST>:8200" />     │
-│                                                                          │
-│  Option B: iframe — simple but isolated                                  │
-│  <iframe src="http://<GANTT_HOST>:8200/embed/my-project" />             │
-│                                                                          │
-└─────────────────────────────────────┬───────────────────────────────────┘
-                                      │ REST API
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Gantt Platform (single deployment, serves all projects)                 │
-│                                                                          │
-│  /admin                → manage projects, import CSV                     │
-│  /project/:slug        → full interactive editor                         │
-│  /embed/:slug          → read-only embeddable view (no toolbar)          │
-│  /sdk/*                → hosted SDK files for <script> usage             │
-│  /api/projects         → REST API                                        │
-│                                                                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│  PostgreSQL                                                              │
-│  ├── gantt_projects    (project registry)                                │
-│  ├── gantt_tasks       (scoped by project_id)                            │
-│  └── gantt_links       (scoped by project_id)                            │
-└─────────────────────────────────────────────────────────────────────────┘
+## Architecture
+
+```text
+persada-web or another portal
+        │ @mcmc/gantt-chart
+        ▼
+Gantt API (FastAPI, port 8200)
+        ├── data transformation / writes ──► Plane
+        └── cache + trash registry ────────► Redis
 ```
 
----
+## Plane-to-Gantt model
 
-## Quick start
+| Gantt concept | Plane source | Notes |
+|---|---|---|
+| Project | Module | A standalone grouping with its own tasks. |
+| Task | Work item | Can have equal start and due dates and still remain a task. |
+| Milestone | Work item | Uses an explicit persisted Gantt type and renders as a diamond. |
+| Parent/child task | Work-item hierarchy | Preserved when reading and writing. |
+
+Type is explicit: the API and SDK do not infer a milestone only because `start_date == end_date`.
+
+Promoting a task to Project creates a Plane Module, moves its direct subtasks into the new module, removes their old parent relationship, and archives the source task. Compensating writes restore the original hierarchy if promotion fails part-way through.
+
+## Current capabilities
+
+- Read Plane projects, modules, work items, hierarchy, and dependency links.
+- Create and update tasks, milestones, and Plane modules.
+- Persist drag/resize changes and row order back to Plane.
+- Promote a long-running task into a standalone Plane module.
+- Move tasks, milestones, and projects to recoverable Trash.
+- Restore trashed items, delete them permanently, or purge them automatically after 30 days.
+- Render pastel status colours, adaptive external labels, weekend shading, today marker, task-table toggle, and timeline zoom controls.
+
+The detailed portal integration contract is maintained in [`sdk/README.md`](sdk/README.md).
+
+## Quick start with Docker
 
 ```bash
-# 1. Clone
-git clone https://devgithub.mcmc.gov.my/mcmc/gantt-app.git
-cd gantt-app
-
-# 2. Configure
 cp .env.example .env
-# Edit .env with your DATABASE_URL
-
-# 3. Load environment variables
-export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
-
-# 4. Initialize database (first time — creates base tables)
-psql $DATABASE_URL -f db/init.sql
-
-# 5. Run migrations
-psql $DATABASE_URL -f db/migrations/001_init_sort_order.sql
-psql $DATABASE_URL -f db/migrations/002_multi_project.sql
-
-# 4. Build and start
-docker compose up --build -d
-
-# 5. Open
-open http://localhost:8200/admin
+# Add the Plane URL, personal access token, and workspace slug.
+docker compose up --build
+curl http://localhost:8200/api/health
 ```
 
----
+Docker Compose starts the API and Redis. The API container listens on `8000`; the host binding is `8200`.
 
-## Onboarding guide (for any team)
+## Run the API directly
 
-### Step 1: Create a project
-
-Go to `/admin` → fill in title and slug → click "Create project"
-
-Or via API:
 ```bash
-curl -X POST http://<GANTT_HOST>:8200/api/projects \
-  -H "Content-Type: application/json" \
-  -d '{"title": "My Project", "slug": "my-project"}'
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+set -a
+source ../.env
+set +a
+uvicorn app.main:app --reload --port 8200
 ```
-
-### Step 2: Add tasks
-
-**Option A: Import CSV**
-- Go to `/admin` → "Import CSV into project"
-- Select your project and upload a CSV
-- Supported formats: ClickUp export, MS Project CSV, or any CSV with columns:
-  - `Task Name` (required)
-  - `Start Date` (required)
-  - `Due Date` or `Duration`
-  - `Parent ID` (for hierarchy)
-  - `Type` (task/milestone/project)
-
-**Option B: Build manually**
-- Open `/project/my-project`
-- Click "+ New task" to add tasks
-- Drag to reorder, resize to change duration, link to create dependencies
-
-### Step 3: Embed in your portal
-
-**Recommended: SDK (Web Component — no iframe, native feel)**
-
-```html
-<mcmc-gantt project="my-project" api="http://<GANTT_HOST>:8200" editable height="80vh"></mcmc-gantt>
-<script src="http://<GANTT_HOST>:8200/sdk/gantt-element.js" type="module"></script>
-```
-
-**Vue 3 portals:**
-
-```vue
-<script setup>
-import { GanttChart } from '@mcmc/gantt-chart/vue'
-</script>
-
-<template>
-  <GanttChart project="my-project" api-base="http://<GANTT_HOST>:8200" :editable="true" height="80vh" />
-</template>
-```
-
-**Fallback: iframe (simple, but isolated UX)**
-
-```html
-<iframe src="http://<GANTT_HOST>:8200/embed/my-project" style="width:100%; height:80vh; border:0;"></iframe>
-```
-
-The chart updates live as tasks are edited.
-
----
-
-## Pages
-
-| URL | Purpose | Editable? |
-|-----|---------|-----------|
-| `/` | Landing page | — |
-| `/admin` | Project management, CSV import | — |
-| `/project/:slug` | Full Gantt editor | Yes |
-| `/embed/:slug` | Embeddable read-only view | No |
-
----
-
-## API reference
-
-### Projects
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/projects` | List all projects |
-| GET | `/api/projects/:slug` | Get project details |
-| POST | `/api/projects` | Create project |
-| PUT | `/api/projects/:slug` | Update project |
-| DELETE | `/api/projects/:slug` | Delete project + all data |
-
-### Tasks (scoped by project)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/projects/:slug/data` | Get all tasks + links (DHTMLX format) |
-| POST | `/api/projects/:slug/task` | Create task |
-| PUT | `/api/projects/:slug/task/:id` | Update task |
-| DELETE | `/api/projects/:slug/task/:id` | Delete task |
-| POST | `/api/projects/:slug/reorder` | Bulk reorder |
-
-### Links (scoped by project)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/projects/:slug/link` | Create link |
-| PUT | `/api/projects/:slug/link/:id` | Update link |
-| DELETE | `/api/projects/:slug/link/:id` | Delete link |
-
-### Import
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/projects/:slug/import` | Upload CSV (multipart form: file + mode) |
-
-### Health
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-
----
-
-## CSV format
-
-The import endpoint accepts flexible column names. It will attempt to match:
-
-| What | Accepted column names |
-|------|----------------------|
-| Task name | `text`, `task_name`, `Task Name` |
-| Start date | `start_date`, `Start Date` |
-| End/due date | `end_date`, `due_date`, `Due Date` |
-| Duration | `duration`, `Days`, `Days (text)` |
-| Parent | `parent`, `parent_id`, `Parent ID` |
-| Type | `type`, `Type` (values: task, milestone, project) |
-| Original ID | `id`, `task_id`, `Task ID` (used for parent resolution) |
-| Progress | `progress` (0-100 or 0.0-1.0) |
-| Assignee | `assignee` |
-| Status | `status` |
-
-Date formats supported: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, ClickUp format (`Monday, August 3rd 2026`).
-
----
 
 ## Environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins (empty = allow all) |
-| `DB_POOL_MIN` | No | Min pool size (default: 1) |
-| `DB_POOL_MAX` | No | Max pool size (default: 10) |
-| `LOG_LEVEL` | No | Logging level (default: INFO) |
+| Variable | Required | Purpose |
+|---|---:|---|
+| `PLANE_BASE_URL` | Yes | Plane instance origin, without a trailing slash. |
+| `PLANE_API_TOKEN` | Yes | Plane personal access token. |
+| `PLANE_WORKSPACE_SLUG` | Yes | Workspace slug from the Plane URL. |
+| `CORS_ORIGINS` | No | Comma-separated browser origins. |
+| `REDIS_URL` | No | Redis connection URL. Required for recoverable Trash. |
+| `CACHE_TTL_SECONDS` | No | Response-cache lifetime; defaults to 300 seconds. |
+| `LOG_LEVEL` | No | API log level; defaults to `INFO`. |
 
----
+Never commit `.env`, Plane tokens, or registry tokens.
 
-## Database migrations
+## API endpoints
 
-Migrations must run in order, and require the base tables from `init.sql` to exist first.
+All project parameters accept a Plane UUID or project identifier where resolution is supported.
 
-```bash
-# Load env (strips comments automatically)
-export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
+### Read and update
 
-# 1. Base tables (idempotent — safe to re-run)
-psql $DATABASE_URL -f db/init.sql
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | API and Plane connectivity health. |
+| `GET` | `/api/projects` | List Plane projects. |
+| `GET` | `/api/projects/{project}` | Get project metadata. |
+| `GET` | `/api/projects/{project}/data` | Return Gantt tasks and dependency links. |
+| `PUT` | `/api/projects/{project}/task/{task}` | dhtmlx DataProcessor update endpoint. |
+| `PATCH` | `/api/projects/{project}/issues/{issue}/dates` | Update dates and explicit Gantt type. |
+| `POST` | `/api/projects/{project}/reorder` | Persist row order. |
+| `POST` | `/api/cache/invalidate` | Clear one project cache or all cached data. |
 
-# 2. Migrations in order
-psql $DATABASE_URL -f db/migrations/001_init_sort_order.sql
-psql $DATABASE_URL -f db/migrations/002_multi_project.sql
-```
+`GET .../data` supports `include_cycles`, `include_modules`, `include_relations`, and `bypass_cache` query parameters.
 
-| Migration | Description | Depends on |
-|-----------|-------------|------------|
-| `db/init.sql` | Creates `gantt_tasks` and `gantt_links` tables | — |
-| `001_init_sort_order.sql` | Sequential sort_order for drag-reorder | init.sql |
-| `002_multi_project.sql` | Multi-project support (projects table, project_id FK) | init.sql |
+### Create, modules, and promotion
 
----
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/projects/{project}/issues` | Create a Task or Milestone. |
+| `POST` | `/api/projects/{project}/modules` | Create a Plane Module/Project. |
+| `PATCH` | `/api/projects/{project}/modules/{module}` | Update a Plane Module/Project. |
+| `POST` | `/api/projects/{project}/issues/{issue}/promote-to-module` | Promote a work item and move its direct subtasks. |
 
-## Upgrading from v1 (single-project)
+### Recoverable deletion
 
-The migration `002_multi_project.sql` automatically:
-1. Creates the `gantt_projects` table
-2. Adds `project_id` column to existing tasks/links
-3. Creates a default project (`persada-phase-1`) with all existing data
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/projects/{project}/trash` | List items deleted through the Gantt. |
+| `POST` | `/api/projects/{project}/trash/{entity_type}/{entity}` | Archive an issue/module and register it for recovery. |
+| `POST` | `/api/projects/{project}/trash/{entity_type}/{entity}/restore` | Restore an item and its recorded context. |
+| `DELETE` | `/api/projects/{project}/trash/{entity_type}/{entity}?confirm=true` | Permanently delete one trashed item. |
 
-Legacy endpoints (`/api/data`, `/api/task`, `/api/link`) still work — they read/write to project_id=1. Existing embeds continue to function without changes.
+Direct permanent-delete endpoints also require `confirm=true`. The SDK normally uses the recoverable flow: three-dot menu → Delete → Undo or Trash management.
 
----
+Trash metadata is stored in Redis independently from the normal response cache. Without Redis, normal Gantt reads and writes still work, but recoverable deletion returns a service-unavailable response.
 
-## SDK (Embeddable Component)
-
-The `sdk/` directory contains an embeddable Gantt component that renders directly in the host page's DOM — no iframe needed.
-
-### Three ways to embed
-
-| Method | Best for | Install |
-|--------|----------|---------|
-| **Web Component** `<mcmc-gantt>` | Any portal (HTML, React, Angular) | `<script>` tag |
-| **Vue 3 component** `<GanttChart>` | Vue apps | `npm install @mcmc/gantt-chart` |
-| **Imperative API** `mountGantt()` | Complex integrations | npm or script |
-
-### Web Component attributes
-
-```html
-<mcmc-gantt
-  project="my-project"
-  api="http://<GANTT_HOST>:8200"
-  editable
-  scale="month"
-  height="80vh"
-></mcmc-gantt>
-```
-
-| Attribute | Required | Description |
-|-----------|----------|-------------|
-| `project` | Yes | Project slug |
-| `api` | No | API base URL (default: same origin) |
-| `editable` | No | Presence enables editing |
-| `scale` | No | day, week, month (default: month) |
-| `height` | No | Container height (default: 600px) |
-
-### Events
-
-```js
-document.querySelector('mcmc-gantt').addEventListener('task-click', (e) => {
-  console.log(e.detail)  // task object
-})
-```
-
-| Event | Detail |
-|-------|--------|
-| `task-click` | Task object when clicked |
-| `task-change` | Task object after update |
-
-### Building the SDK
+## SDK development
 
 ```bash
 cd sdk
-npm install
+npm ci
 npm run build
-# Output: dist/gantt-element.js, dist/gantt-chart.es.js
 ```
 
-Host `dist/` on the Gantt platform at `/sdk/` or publish to your npm registry.
+The package publishes to the private MCMC GitHub Packages registry. Versioning and consumer examples are documented in [`sdk/README.md`](sdk/README.md).
 
-See [`sdk/README.md`](sdk/README.md) for full documentation.
+## Verification
 
----
+```bash
+cd backend
+pytest
 
-## Embedding tips
+cd ../sdk
+npm ci
+npm run build
+```
 
-- **SDK (recommended):** Renders in the host page — shared styles, native scroll, events
-- **iframe fallback:** Use `/embed/:slug` — simpler but isolated UX
-- **CORS:** Set `CORS_ORIGINS` to your portal's domain
-- **CSP:** For iframe, set `frame-ancestors`; for SDK, just allow API requests
-
----
-
-## Tech stack
-
-- **Backend:** FastAPI + asyncpg (Python 3.12)
-- **Frontend:** DHTMLX Gantt (GPL edition) — vanilla JS, no build step
-- **SDK:** Web Component + Vue 3 wrapper (Vite build)
-- **Database:** PostgreSQL
-- **Deployment:** Docker
+Tests cover explicit task/milestone typing, Plane transformation, task-to-module promotion, rollback behavior, and recoverable Trash.
