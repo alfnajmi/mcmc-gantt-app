@@ -30,7 +30,7 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { mountGantt } from './core.js'
 
 const props = defineProps({
-  project: { type: String, required: true },
+  project: { type: String, default: '' },
   apiBase: { type: String, required: true },
   editable: { type: Boolean, default: true },
   scale: { type: String, default: 'week' },
@@ -495,10 +495,12 @@ function handleExport() {
     </div>
     <div v-if="filterOpen" class="gv-filter-overlay" @click="filterOpen = false"></div>
 
-    <!-- Gantt chart -->
-    <div ref="containerRef" class="gv-chart"></div>
+    <!-- Chart shell keeps all side panels below the toolbar -->
+    <div class="gv-chart-shell">
+      <!-- Gantt chart -->
+      <div ref="containerRef" class="gv-chart"></div>
 
-    <!-- Fields panel -->
+      <!-- Fields panel -->
     <Transition name="gv-slide">
       <div v-if="fieldsOpen" class="gv-fields-panel">
         <div class="gv-fields-header">
@@ -543,6 +545,7 @@ function handleExport() {
         </div>
       </div>
     </Transition>
+    </div>
   </div>
 </template>
 
@@ -639,8 +642,19 @@ function handleExport() {
 }
 .gv-chip:hover { background: #f8fafc; border-color: #cbd5e1; }
 .gv-chip.active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; font-weight: 600; }
-/* Chart */
-.gv-chart { flex: 1; min-height: 0; position: relative; }
+/* Chart and side panels */
+.gv-chart-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.gv-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 /* Fields panel */
 .gv-fields-panel {
   position: absolute; top: 0; right: 0; width: 240px; height: 100%;
