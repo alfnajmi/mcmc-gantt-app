@@ -17,7 +17,7 @@ from html import escape
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.config import PLANE_BASE_URL
+from app.config import PLANE_BASE_URL, PLANE_WORKSPACE_SLUG
 from app.services.plane import PlaneService, PlaneAPIError
 from app.services.plane_transformer import (
     GANTT_MILESTONE_LABEL_NAME,
@@ -163,6 +163,15 @@ async def health():
         return {"status": "ok", "engine": "plane", "version": "3.1.0", "plane": "error", "error": str(e), "cache": cache.is_available()}
     finally:
         await svc.close()
+
+
+@router.get("/config")
+async def get_config():
+    """Return public Plane configuration for frontends (workspace slug and base URL)."""
+    return {
+        "plane_url": PLANE_BASE_URL or "",
+        "workspace_slug": PLANE_WORKSPACE_SLUG or "",
+    }
 
 
 # ------------------------------------------------------------------
