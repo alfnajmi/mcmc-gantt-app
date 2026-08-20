@@ -38,6 +38,26 @@ jobs:
             gantt-app-staging.tar \
             ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }}:/tmp/gantt-app-staging.tar
 
+      - name: Write .env file on staging server
+        run: |
+          sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no \
+            ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }} \
+            "cd \$HOME/disd/git/gantt-app && \
+             DB_URL=\$(grep ^DATABASE_URL .env 2>/dev/null | cut -d= -f2-) && \
+             DB_POOL_MIN=\$(grep ^DB_POOL_MIN .env 2>/dev/null | cut -d= -f2-) && \
+             DB_POOL_MAX=\$(grep ^DB_POOL_MAX .env 2>/dev/null | cut -d= -f2-) && \
+             printf '%s\n' \
+               \"DATABASE_URL=\${DB_URL:-postgresql://user:password@host:5432/dbname}\" \
+               \"CORS_ORIGINS=${{ vars.CORS_ORIGINS }}\" \
+               \"CACHE_TTL_SECONDS=${{ vars.CACHE_TTL_SECONDS }}\" \
+               \"DB_POOL_MIN=\${DB_POOL_MIN:-1}\" \
+               \"DB_POOL_MAX=\${DB_POOL_MAX:-10}\" \
+               \"PLANE_BASE_URL=${{ vars.PLANE_BASE_URL }}\" \
+               \"PLANE_API_TOKEN=${{ secrets.PLANE_API_TOKEN }}\" \
+               \"PLANE_WORKSPACE_SLUG=${{ vars.PLANE_WORKSPACE_SLUG }}\" \
+               > .env"
+
       - name: Deploy to staging server
         run: |
           sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
