@@ -48,7 +48,24 @@ const emit = defineEmits(['task-click', 'task-change', 'scale-change'])
 const containerRef = ref(null)
 let controller = null
 
-onMounted(() => {
+// Resolved Plane config (fetched from backend if props not provided)
+const resolvedPlaneUrl = ref(props.planeUrl)
+const resolvedWorkspaceSlug = ref(props.workspaceSlug)
+
+onMounted(async () => {
+  // Auto-fetch Plane config from the backend if not explicitly passed as props
+  if (!props.planeUrl || !props.workspaceSlug) {
+    try {
+      const resp = await fetch(`${props.apiBase}/api/config`)
+      if (resp.ok) {
+        const cfg = await resp.json()
+        if (!props.planeUrl && cfg.plane_url) resolvedPlaneUrl.value = cfg.plane_url
+        if (!props.workspaceSlug && cfg.workspace_slug) resolvedWorkspaceSlug.value = cfg.workspace_slug
+      }
+    } catch {
+      // Silently fall back to prop defaults
+    }
+  }
   initGantt()
 })
 
@@ -81,8 +98,8 @@ function initGantt() {
     apiBase: props.apiBase,
     editable: props.editable,
     scale: props.scale,
-    planeUrl: props.planeUrl,
-    workspaceSlug: props.workspaceSlug,
+    planeUrl: resolvedPlaneUrl.value,
+    workspaceSlug: resolvedWorkspaceSlug.value,
     projectId: props.projectId,
     showPopup: props.showPopup,
     showGrid: props.showGrid,
