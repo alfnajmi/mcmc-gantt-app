@@ -11,24 +11,53 @@ import json
 import time
 import requests
 
-API_BASE = "https://plane-digd.mcmc.gov.my"
-API_KEY = "plane_api_8ee6a72d75bd4469a3e12819a2ad81cb"
-WORKSPACE = "disd"
-PROJECT_ID = "48b5e204-6a3d-46bf-84ec-fb603cf8dd35"
+import os
+
+API_BASE = os.environ.get("PLANE_BASE_URL", "https://plane-digd.mcmc.gov.my")
+API_KEY = os.environ.get("PLANE_API_TOKEN", "plane_api_8ee6a72d75bd4469a3e12819a2ad81cb")
+WORKSPACE = os.environ.get("PLANE_WORKSPACE_SLUG", "persada")
+PROJECT_ID = os.environ.get("PLANE_PROJECT_ID", "9bd17731-fa8f-40a7-81b6-31a3aae3ad63")
 
 HEADERS = {
     "X-API-Key": API_KEY,
     "Content-Type": "application/json",
 }
 
-# State mapping (CSV status → Plane state ID)
-STATE_MAP = {
-    "to do": "0f6a9c8d-6e28-4112-8a05-dd66bd9b9738",       # Todo (unstarted)
-    "in progress": "6921944f-2d53-4741-b9c5-13dc2122c427",  # In Progress (started)
-    "complete": "ad8a9eff-7b0f-4d52-a410-02cf03b35982",     # Done (completed)
-    "on hold": "971f5977-9fb7-4d25-ba96-d9f70be22c30",      # Backlog
-    "planning": "971f5977-9fb7-4d25-ba96-d9f70be22c30",     # Backlog
+# CSV status → Plane state *group*. State IDs are per-project, so they are
+# resolved at runtime instead of hardcoded (see resolve_state_map).
+STATUS_TO_GROUP = {
+    "to do": "unstarted",
+    "in progress": "started",
+    "complete": "completed",
+    "on hold": "backlog",
+    "planning": "backlog",
 }
+
+
+def resolve_state_map():
+    """Fetch this project's states and map CSV statuses to their state IDs."""
+    resp = requests.get(
+        f"{API_BASE}/api/v1/workspaces/{WORKSPACE}/projects/{PROJECT_ID}/states/",
+        headers=HEADERS,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    states = payload.get("results", payload) if isinstance(payload, dict) else payload
+
+    by_group = {}
+    for state in states:
+        by_group.setdefault(state["group"], state["id"])
+
+    fallback = by_group.get("unstarted") or by_group.get("backlog")
+    if not fallback:
+        raise RuntimeError("No usable states found on the target project.")
+
+    state_map = {
+        status: by_group.get(group, fallback) for status, group in STATUS_TO_GROUP.items()
+    }
+    print(f"Resolved {len(states)} project states -> {sorted(set(state_map.values()))}")
+    return state_map
 
 # Priority mapping (not in CSV, default to none)
 DEFAULT_PRIORITY = "none"
@@ -187,8 +216,11 @@ def add_issue_to_module(module_id, issue_id):
 def main():
     print("=" * 60)
     print("Importing PERSADA tasks into Plane.so")
+    print(f"Workspace: {WORKSPACE}")
     print(f"Project: {PROJECT_ID}")
     print("=" * 60)
+
+    state_map = resolve_state_map()
 
     # Parse CSV
     reader = csv.DictReader(io.StringIO(CSV_DATA.strip()))
@@ -233,7 +265,7 @@ def main():
         ws = task["workstream"].strip()
 
         # Map status to state ID
-        state_id = STATE_MAP.get(status, STATE_MAP["to do"])
+        state_id = state_map.get(status, state_map["to do"])
 
         # Create the issue
         issue_id = create_issue(name, state_id, start, end)
@@ -255,8 +287,8 @@ def main():
     print(f"\n{'=' * 60}")
     print(f"DONE! Created {created} issues, {failed} failed.")
     print(f"Modules: {len(module_map)}")
-    print(f"\nView in Plane: {API_BASE}/disd/projects/{PROJECT_ID}/issues/")
-    print(f"View in Gantt:  http://localhost:5173/persada/gantt")
+    print(f"\nView in Plane: {API_BASE}/{WORKSPACE}/projects/{PROJECT_ID}/issues/")
+    print("View in Gantt:  http://localhost:5174/persada/portal/gantt")
     print(f"{'=' * 60}")
 
 
