@@ -527,7 +527,7 @@ function handleExport() {
 
       <!-- Fields panel -->
     <Transition name="gv-slide">
-      <div v-if="fieldsOpen" class="gv-fields-panel">
+      <div v-if="fieldsOpen" class="gv-fields-panel" :style="{ top: `${scaleHeight}px` }">
         <div class="gv-fields-header">
           <span>Fields</span>
           <button @click="fieldsOpen = false">✕</button>
@@ -545,7 +545,7 @@ function handleExport() {
     </Transition>
 
     <Transition name="gv-slide">
-      <div v-if="trashOpen" class="gv-trash-panel" :style="{ width: `${trashWidth}px` }">
+      <div v-if="trashOpen" class="gv-trash-panel" :style="{ width: `${trashWidth}px`, top: `${scaleHeight}px` }">
         <button
           type="button"
           class="gv-trash-resizer"
@@ -689,12 +689,12 @@ function handleExport() {
 }
 /* Fields panel */
 .gv-fields-panel {
-  position: absolute; top: 0; right: 0; width: 240px; height: 100%;
+  position: absolute; right: 0; bottom: 0; width: 240px;
   background: #fff; border-left: 1px solid #e2e8f0; z-index: 50;
   display: flex; flex-direction: column; box-shadow: -2px 0 8px rgba(0,0,0,0.04);
 }
 .gv-trash-panel {
-  position: absolute; top: 0; right: 0; max-width: 92%; height: 100%;
+  position: absolute; right: 0; bottom: 0; max-width: 92%;
   background: #fff; border-left: 1px solid #e2e8f0; z-index: 60;
   display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(15,23,42,.08);
 }
