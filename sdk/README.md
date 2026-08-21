@@ -91,6 +91,15 @@ Then install:
 npm install @mcmc/gantt-chart
 ```
 
+> **Off the office network / VPN, install fails with `ETIMEDOUT ... devminio.mcmc.gov.my:9000`?**
+> Package metadata resolves fine through `devgithub.mcmc.gov.my` (reachable over 443),
+> but the tarball itself is fetched from a separate internal MinIO host/port that isn't
+> exposed the same way. This is a firewall gap on the registry side, not a problem with
+> your `.npmrc` — see the [persada-web README's troubleshooting
+> section](https://devgithub.mcmc.gov.my/mcmc/persada-web/blob/staging/README.md#troubleshooting-etimedout-connecting-to-devminiomcmcgovmy)
+> for the full writeup and a workaround for updating version pins without tarball
+> access.
+
 ## Three ways to use
 
 ### Recommended: GanttView (full experience)
