@@ -1,0 +1,71 @@
+name: Publish SDK
+
+on:
+  pull_request:
+    branches: [staging]
+    types: [closed]
+    paths:
+      - 'sdk/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: [self-hosted, Linux, X64]
+    environment: Staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: sdk
+        run: npm install
+
+      - name: Bump patch version
+        id: bump
+        working-directory: sdk
+        run: |
+          npm version patch --no-git-tag-version
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build SDK
+        working-directory: sdk
+        run: npm run build
+
+      - name: Publish to registry
+        working-directory: sdk
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}" >> .npmrc
+          npm publish
+
+      - name: Open version bump PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          BRANCH="chore/sdk-v${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.devgithub.mcmc.gov.my"
+          git checkout -b "$BRANCH"
+          git add sdk/package.json sdk/package-lock.json
+          git commit -m "chore(sdk): publish @mcmc/gantt-chart v${VERSION}"
+          git push "https://x-access-token:${GH_TOKEN}@devgithub.mcmc.gov.my/mcmc/gantt-app.git" "$BRANCH"
+          curl -sf -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://devgithub.mcmc.gov.my/api/v3/repos/mcmc/gantt-app/pulls" \
+            -d "{\"title\":\"chore(sdk): publish @mcmc/gantt-chart v${VERSION}\",\"head\":\"${BRANCH}\",\"base\":\"staging\",\"body\":\"Automated version bump after publishing @mcmc/gantt-chart@${VERSION} to the registry.\"}"

@@ -43,13 +43,6 @@ jobs:
             gantt-app-staging.tar \
             ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }}:/tmp/gantt-app-staging.tar
 
-      - name: Copy docker-compose.yml to staging server
-        run: |
-          sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
-            scp -o StrictHostKeyChecking=no \
-            docker-compose.yml \
-            ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }}:\$HOME/disd/git/gantt-app/docker-compose.yml
-
       - name: Write .env file on staging server
         run: |
           sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
