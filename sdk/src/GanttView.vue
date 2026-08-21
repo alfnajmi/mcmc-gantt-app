@@ -189,6 +189,31 @@ const trashOpen = ref(false)
 const trashLoading = ref(false)
 const trashItems = ref([])
 const trashError = ref('')
+const trashWidth = ref(440)
+const TRASH_MIN_WIDTH = 320
+const TRASH_MAX_WIDTH = 640
+
+function startTrashResize(event) {
+  event.preventDefault()
+  const startX = event.clientX
+  const startWidth = trashWidth.value
+
+  const onMove = (moveEvent) => {
+    const nextWidth = startWidth + startX - moveEvent.clientX
+    trashWidth.value = Math.min(TRASH_MAX_WIDTH, Math.max(TRASH_MIN_WIDTH, nextWidth))
+  }
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
+}
 const fields = [
   { key: 'text', label: 'Task Name', alwaysOn: true },
   { key: 'start_date', label: 'Start date' },
@@ -520,7 +545,13 @@ function handleExport() {
     </Transition>
 
     <Transition name="gv-slide">
-      <div v-if="trashOpen" class="gv-trash-panel">
+      <div v-if="trashOpen" class="gv-trash-panel" :style="{ width: `${trashWidth}px` }">
+        <button
+          type="button"
+          class="gv-trash-resizer"
+          aria-label="Resize trash sidebar"
+          @pointerdown="startTrashResize"
+        ></button>
         <div class="gv-fields-header">
           <div><strong>Trash</strong><small>Items are deleted forever after 30 days.</small></div>
           <button @click="trashOpen = false">✕</button>
@@ -554,6 +585,7 @@ function handleExport() {
   display: flex;
   flex-direction: column;
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -662,10 +694,20 @@ function handleExport() {
   display: flex; flex-direction: column; box-shadow: -2px 0 8px rgba(0,0,0,0.04);
 }
 .gv-trash-panel {
-  position: absolute; top: 0; right: 0; width: min(440px, 92%); height: 100%;
+  position: absolute; top: 0; right: 0; max-width: 92%; height: 100%;
   background: #fff; border-left: 1px solid #e2e8f0; z-index: 60;
   display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(15,23,42,.08);
 }
+.gv-trash-resizer {
+  position: absolute; top: 0; bottom: 0; left: -5px; width: 10px;
+  padding: 0; border: 0; background: transparent; cursor: col-resize; z-index: 1;
+}
+.gv-trash-resizer::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px;
+  background: #60a5fa; opacity: 0; transition: opacity 140ms ease;
+}
+.gv-trash-resizer:hover::after,
+.gv-trash-resizer:focus-visible::after { opacity: 1; }
 .gv-fields-header div { display: flex; flex-direction: column; gap: 3px; }
 .gv-fields-header small { font-size: 11px; font-weight: 400; color: #64748b; }
 .gv-trash-body { flex: 1; overflow-y: auto; padding: 10px 14px; }

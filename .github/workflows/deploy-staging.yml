@@ -43,6 +43,13 @@ jobs:
             gantt-app-staging.tar \
             ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }}:/tmp/gantt-app-staging.tar
 
+      - name: Copy docker-compose.yml to staging server
+        run: |
+          sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no \
+            docker-compose.yml \
+            ${{ vars.STAGING_DEPLOY_USERNAME }}@${{ vars.STAGING_DEPLOY_HOST }}:\$HOME/disd/git/gantt-app/docker-compose.yml
+
       - name: Write .env file on staging server
         run: |
           sshpass -p "${{ secrets.STAGING_DEPLOY_PASSWORD }}" \
@@ -58,6 +65,7 @@ jobs:
                \"CACHE_TTL_SECONDS=${{ vars.CACHE_TTL_SECONDS }}\" \
                \"DB_POOL_MIN=\${DB_POOL_MIN:-1}\" \
                \"DB_POOL_MAX=\${DB_POOL_MAX:-10}\" \
+               \"REDIS_URL=${{ vars.REDIS_URL }}\" \
                \"PLANE_BASE_URL=${{ vars.PLANE_BASE_URL }}\" \
                \"PLANE_API_TOKEN=${{ secrets.PLANE_API_TOKEN }}\" \
                \"PLANE_WORKSPACE_SLUG=${{ vars.PLANE_WORKSPACE_SLUG }}\" \
@@ -75,8 +83,8 @@ jobs:
           # Load image
           docker load -i /tmp/gantt-app-staging.tar
 
-          # Tag as expected by docker-compose
-          docker tag gantt-app:staging gantt-app-gantt:latest
+          # Tag as expected by docker-compose (project "gantt-app", service "gantt-api")
+          docker tag gantt-app:staging gantt-app-gantt-api:latest
 
           # Restart with new image
           cd "$APP_DIR"
@@ -91,7 +99,7 @@ jobs:
               fi
               if [ "$i" -eq 30 ]; then
                   echo "ERROR: Gantt app failed health check."
-                  docker logs gantt-app-gantt-1 --tail 20
+                  docker logs gantt-app-gantt-api-1 --tail 20
                   exit 1
               fi
               sleep 2
