@@ -5,7 +5,8 @@ on:
     branches: [staging]
     types: [closed]
     paths:
-      - 'sdk/**'
+      - 'sdk/src/**'
+      - 'sdk/vite.config.js'
   workflow_dispatch: {}
 
 permissions:
