@@ -12,6 +12,7 @@ export default defineConfig({
         'gantt-vue': resolve(__dirname, 'src/GanttChart.vue'),
         'gantt-view': resolve(__dirname, 'src/GanttView.vue'),
         'gantt-fields-panel': resolve(__dirname, 'src/GanttFieldsPanel.vue'),
+        'gantt-sidebars': resolve(__dirname, 'src/useGanttSidebars.js'),
       },
       formats: ['es'],
       name: 'McmcGantt',

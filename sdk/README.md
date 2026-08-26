@@ -147,6 +147,28 @@ Includes toolbar, filter, fields panel, edit sidebar, and task popup — zero ad
 
 For portals that want full control over the toolbar and surrounding UI:
 
+When composing SDK panels around the bare chart, use the SDK sidebar controller so
+Fields and Trash remain mutually exclusive:
+
+```vue
+<script setup>
+import GanttFieldsPanel from '@mcmc/gantt-chart/fields-panel'
+import { useGanttSidebars } from '@mcmc/gantt-chart/sidebars'
+
+const {
+  fieldsOpen,
+  trashOpen,
+  openFields,
+  closeFields,
+  openTrash,
+  closeTrash,
+} = useGanttSidebars()
+</script>
+```
+
+Opening either sidebar automatically closes the other. `GanttView` uses this same
+controller internally, making the SDK the source of truth for sidebar behavior.
+
 ### 1. Web Component (any framework or plain HTML)
 
 ```html

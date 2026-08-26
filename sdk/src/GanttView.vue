@@ -28,6 +28,7 @@
 
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { mountGantt } from './core.js'
+import { useGanttSidebars } from './useGanttSidebars.js'
 
 const props = defineProps({
   project: { type: String, default: '' },
@@ -126,6 +127,7 @@ async function fetchProjects() {
 }
 
 function selectProject(proj) {
+  closeSidebars()
   selectedProject.value = proj
   showProjectDropdown.value = false
   emit('project-change', proj)
@@ -184,8 +186,15 @@ function clearFilters() {
 }
 
 // --- Fields panel ---
-const fieldsOpen = ref(false)
-const trashOpen = ref(false)
+const {
+  fieldsOpen,
+  trashOpen,
+  toggleFields: toggleFieldsSidebar,
+  openTrash: openTrashSidebar,
+  closeFields: closeFieldsSidebar,
+  closeTrash: closeTrashSidebar,
+  closeAll: closeSidebars,
+} = useGanttSidebars()
 const trashLoading = ref(false)
 const trashItems = ref([])
 const trashError = ref('')
@@ -367,7 +376,7 @@ function reloadChart() {
 }
 
 async function openTrash() {
-  trashOpen.value = true
+  openTrashSidebar()
   trashLoading.value = true
   trashError.value = ''
   try {
@@ -487,7 +496,7 @@ function handleExport() {
         <button class="gv-btn" :class="{ active: closedVisible }" @click="closedVisible = !closedVisible">
           <span class="gv-dot" :class="{ on: closedVisible }"></span> Closed
         </button>
-        <button v-if="showFields" class="gv-btn" @click="fieldsOpen = !fieldsOpen">Fields</button>
+        <button v-if="showFields" class="gv-btn" :class="{ active: fieldsOpen }" @click="toggleFieldsSidebar">Fields</button>
       </div>
     </div>
 
@@ -530,7 +539,7 @@ function handleExport() {
       <div v-if="fieldsOpen" class="gv-fields-panel" :style="{ top: `${scaleHeight}px` }">
         <div class="gv-fields-header">
           <span>Fields</span>
-          <button @click="fieldsOpen = false">✕</button>
+          <button @click="closeFieldsSidebar">✕</button>
         </div>
         <div class="gv-fields-body">
           <div v-for="f in fields" :key="f.key" class="gv-field-row">
@@ -554,7 +563,7 @@ function handleExport() {
         ></button>
         <div class="gv-fields-header">
           <div><strong>Trash</strong><small>Items are deleted forever after 30 days.</small></div>
-          <button @click="trashOpen = false">✕</button>
+          <button @click="closeTrashSidebar">✕</button>
         </div>
         <div class="gv-trash-body">
           <div v-if="trashLoading" class="gv-trash-empty">Loading…</div>
