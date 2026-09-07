@@ -24,6 +24,7 @@ const SIDEBAR_CSS = `
   top: 0;
   right: 0;
   height: 100%;
+  min-width: 360px;
   background: #fff;
   border-left: 1px solid #e2e8f0;
   box-shadow: -4px 0 16px rgba(0,0,0,0.06);
@@ -57,11 +58,19 @@ const SIDEBAR_CSS = `
   border-bottom: 1px solid #f1f5f9;
 }
 .gantt-sidebar-header-left {
+  min-width: 0;
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 .gantt-sidebar-id {
+  min-width: 0;
+  max-width: 180px;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   font-weight: 600;
   color: #94a3b8;
@@ -83,6 +92,7 @@ const SIDEBAR_CSS = `
   color: #475569;
 }
 .gantt-sidebar-actions {
+  flex: 0 0 auto;
   display: flex;
   gap: 2px;
 }
@@ -115,10 +125,19 @@ const SIDEBAR_CSS = `
 .gantt-sidebar-more-item:hover { background: #fef2f2; }
 /* Type dropdown */
 .gantt-type-btn {
-  display: inline-flex;
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
   align-items: center;
+  width: max-content !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  position: relative;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 4px 24px 4px 26px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #f8fafc;
@@ -127,6 +146,16 @@ const SIDEBAR_CSS = `
   color: #334155;
   cursor: pointer;
 }
+.gantt-type-btn::before,
+.gantt-type-btn::after {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  line-height: 1;
+  pointer-events: none;
+}
+.gantt-type-btn::before { content: attr(data-icon); left: 10px; }
+.gantt-type-btn::after { content: '▾'; right: 9px; }
 .gantt-type-btn:hover { background: #f1f5f9; }
 /* Dropdown menu (shared) */
 .gantt-dropdown-menu {
@@ -166,6 +195,9 @@ const SIDEBAR_CSS = `
 }
 .gantt-sidebar-name input {
   width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border: none;
   font-size: 18px;
   font-weight: 700;
@@ -249,10 +281,14 @@ const SIDEBAR_CSS = `
 /* Dates inline */
 .gantt-dates-inline {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 .gantt-date-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 3px 8px;
   border: 1px solid #e2e8f0;
   border-radius: 5px;
@@ -529,8 +565,8 @@ export function createEditSidebar(opts) {
       <div class="gantt-sidebar-resize" data-action="resize"></div>
       <div class="gantt-sidebar-header">
         <div class="gantt-sidebar-header-left">
-          <div style="position:relative">
-            <button class="gantt-type-btn" data-action="toggle-type">${typeOpt.icon} ${typeOpt.label} ▾</button>
+          <div style="position:relative;flex:0 0 auto">
+            <button class="gantt-type-btn" style="display:inline-flex!important;align-items:center!important;min-width:78px!important;white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important;writing-mode:horizontal-tb!important;direction:ltr!important" data-icon="${typeOpt.icon}" data-action="toggle-type">${typeOpt.label}</button>
           </div>
           ${seqId}
         </div>
@@ -680,7 +716,7 @@ export function createEditSidebar(opts) {
         e.preventDefault()
         const startX = e.clientX
         const startW = width
-        function onMove(ev) { width = Math.max(280, Math.min(600, startW + (startX - ev.clientX))); el.style.width = width + 'px' }
+        function onMove(ev) { width = Math.max(360, Math.min(600, startW + (startX - ev.clientX))); el.style.width = width + 'px' }
         function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
         document.addEventListener('mousemove', onMove)
         document.addEventListener('mouseup', onUp)
@@ -900,6 +936,15 @@ export function createEditSidebar(opts) {
     }
   }
 
+  function updateDates(id, startDate, endDate) {
+    if (!task || String(task.id) !== String(id)) return
+    task.start_date = startDate
+    task.end_date = endDate
+    task.plane_start_date = startDate
+    task.plane_target_date = endDate
+    render()
+  }
+
   function destroy() {
     close()
     if (toastTimer) clearTimeout(toastTimer)
@@ -907,7 +952,7 @@ export function createEditSidebar(opts) {
     toast = null
   }
 
-  return { open, close, destroy }
+  return { open, updateDates, close, destroy }
 }
 
 function escHtml(str) {

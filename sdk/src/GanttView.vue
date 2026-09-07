@@ -26,7 +26,7 @@
  *   scaleHeight    — total timeline-header height (default: 64px)
  */
 
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { mountGantt } from './core.js'
 import { useGanttSidebars } from './useGanttSidebars.js'
 
@@ -121,6 +121,14 @@ async function fetchProjects() {
       // Auto-select by prop or first
       const match = projectList.value.find(p => p.id === props.project || p.slug === props.project || p.identifier?.toLowerCase() === props.project?.toLowerCase())
       selectedProject.value = match || projectList.value[0] || null
+      // Mount the chart with the resolved project. Without an explicit
+      // `project` prop the initial mount has no project to load, so the
+      // selector must drive the first mount once projects are known.
+      if (selectedProject.value) {
+        if (controller) controller.destroy()
+        await nextTick()
+        initGanttWithProject(selectedProject.value.id)
+      }
     }
   } catch (e) { console.error('Failed to fetch projects:', e) }
   finally { projectLoading.value = false }
@@ -252,10 +260,57 @@ function toggleField(key) {
   rebuildColumns()
 }
 
+// Close transient SDK UI when the user clicks anywhere outside its box.
+// Task detail popups keep using core.js's own full-page overlay.
+function handleOutsidePointerDown(event) {
+  const target = event.target
+  if (!(target instanceof Element)) return
+
+  if (filterOpen.value &&
+      !target.closest('.gv-filter-dropdown') &&
+      !target.closest('.gv-filter-trigger')) {
+    filterOpen.value = false
+  }
+  if (fieldsOpen.value &&
+      !target.closest('.gv-fields-panel') &&
+      !target.closest('.gv-fields-trigger')) {
+    closeFieldsSidebar()
+  }
+  if (trashOpen.value &&
+      !target.closest('.gv-trash-panel') &&
+      !target.closest('.gv-trash-trigger')) {
+    closeTrashSidebar()
+  }
+  if (showProjectDropdown.value &&
+      !target.closest('.gv-project-menu') &&
+      !target.closest('.gv-project-trigger')) {
+    showProjectDropdown.value = false
+  }
+  if (showScaleDropdown.value &&
+      !target.closest('.gv-scale-menu') &&
+      !target.closest('.gv-scale-trigger')) {
+    showScaleDropdown.value = false
+  }
+}
+
 // --- Gantt lifecycle ---
 onMounted(() => {
-  fetchProjects()
-  initGantt()
+  document.addEventListener('pointerdown', handleOutsidePointerDown, true)
+  if (props.showProjectSelector) {
+    // The selector fetches projects and mounts the chart with the resolved
+    // project; a parallel empty initGantt() would load a project-less chart.
+    fetchProjects()
+  } else {
+    initGantt()
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleOutsidePointerDown, true)
+  if (controller) {
+    controller.destroy()
+    controller = null
+  }
 })
 
 watch(() => props.project, () => {
@@ -458,12 +513,25 @@ function handleExport() {
           </svg>
           Task table
         </button>
-        <!-- Project selector -->
+        <button class="gv-btn" @click="handleToday">Today</button>
+        <div class="gv-dropdown-wrap">
+          <button class="gv-btn gv-scale-trigger" @click="showScaleDropdown = !showScaleDropdown">
+            {{ scaleOptions.find(s => s.value === currentScale)?.label || 'Week' }} ▾
+          </button>
+          <div v-if="showScaleDropdown" class="gv-dropdown-menu gv-scale-menu">
+            <button v-for="opt in scaleOptions" :key="opt.value" class="gv-dropdown-item" :class="{ active: currentScale === opt.value }" @click="setScale(opt.value)">{{ opt.label }}</button>
+          </div>
+        </div>
+        <button class="gv-btn" @click="handleAutoFit">Auto Fit</button>
+        <button class="gv-btn" @click="handleExport">Export</button>
+      </div>
+      <div class="gv-toolbar-right">
+        <!-- Project selector — immediately left of Trash -->
         <div v-if="showProjectSelector" class="gv-dropdown-wrap">
-          <button class="gv-btn gv-project-btn" @click="showProjectDropdown = !showProjectDropdown">
+          <button class="gv-btn gv-project-btn gv-project-trigger" @click="showProjectDropdown = !showProjectDropdown">
             {{ selectedProject?.title || selectedProject?.identifier || 'Select project' }} ▾
           </button>
-          <div v-if="showProjectDropdown" class="gv-dropdown-menu gv-project-menu">
+          <div v-if="showProjectDropdown" class="gv-dropdown-menu gv-project-menu gv-project-menu-right">
             <button v-if="projectLoading" class="gv-dropdown-item" disabled>Loading...</button>
             <button
               v-for="p in projectList"
@@ -476,27 +544,14 @@ function handleExport() {
             </button>
           </div>
         </div>
-        <button class="gv-btn" @click="handleToday">Today</button>
-        <div class="gv-dropdown-wrap">
-          <button class="gv-btn" @click="showScaleDropdown = !showScaleDropdown">
-            {{ scaleOptions.find(s => s.value === currentScale)?.label || 'Week' }} ▾
-          </button>
-          <div v-if="showScaleDropdown" class="gv-dropdown-menu">
-            <button v-for="opt in scaleOptions" :key="opt.value" class="gv-dropdown-item" :class="{ active: currentScale === opt.value }" @click="setScale(opt.value)">{{ opt.label }}</button>
-          </div>
-        </div>
-        <button class="gv-btn" @click="handleAutoFit">Auto Fit</button>
-        <button class="gv-btn" @click="handleExport">Export</button>
-      </div>
-      <div class="gv-toolbar-right">
-        <button class="gv-btn" :class="{ active: trashOpen }" @click="openTrash">Trash</button>
-        <button v-if="showFilter" class="gv-btn" :class="{ active: filterOpen || activeFilterCount > 0 }" @click="filterOpen = !filterOpen">
+        <button class="gv-btn gv-trash-trigger" :class="{ active: trashOpen }" @click="openTrash">Trash</button>
+        <button v-if="showFilter" class="gv-btn gv-filter-trigger" :class="{ active: filterOpen || activeFilterCount > 0 }" @click="filterOpen = !filterOpen">
           Filter <span v-if="activeFilterCount" class="gv-badge">{{ activeFilterCount }}</span>
         </button>
         <button class="gv-btn" :class="{ active: closedVisible }" @click="closedVisible = !closedVisible">
           <span class="gv-dot" :class="{ on: closedVisible }"></span> Closed
         </button>
-        <button v-if="showFields" class="gv-btn" :class="{ active: fieldsOpen }" @click="toggleFieldsSidebar">Fields</button>
+        <button v-if="showFields" class="gv-btn gv-fields-trigger" :class="{ active: fieldsOpen }" @click="toggleFieldsSidebar">Fields</button>
       </div>
     </div>
 
@@ -527,16 +582,24 @@ function handleExport() {
         </div>
       </div>
     </div>
-    <div v-if="filterOpen" class="gv-filter-overlay" @click="filterOpen = false"></div>
 
     <!-- Chart shell keeps all side panels below the toolbar -->
     <div class="gv-chart-shell">
       <!-- Gantt chart -->
       <div ref="containerRef" class="gv-chart"></div>
 
+      <!-- Empty state — prompt the user to pick a project when none is active -->
+      <div v-if="showProjectSelector && !selectedProject && !projectLoading" class="gv-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <p class="gv-empty-title">No project selected</p>
+        <p class="gv-empty-sub">Choose a project to load its Gantt chart.</p>
+      </div>
+
       <!-- Fields panel -->
     <Transition name="gv-slide">
-      <div v-if="fieldsOpen" class="gv-fields-panel" :style="{ top: `${scaleHeight}px` }">
+      <div v-if="fieldsOpen" class="gv-fields-panel">
         <div class="gv-fields-header">
           <span>Fields</span>
           <button @click="closeFieldsSidebar">✕</button>
@@ -554,7 +617,7 @@ function handleExport() {
     </Transition>
 
     <Transition name="gv-slide">
-      <div v-if="trashOpen" class="gv-trash-panel" :style="{ width: `${trashWidth}px`, top: `${scaleHeight}px` }">
+      <div v-if="trashOpen" class="gv-trash-panel" :style="{ width: `${trashWidth}px` }">
         <button
           type="button"
           class="gv-trash-resizer"
@@ -625,10 +688,20 @@ function handleExport() {
   color: #475569;
   cursor: pointer;
 }
+.gantt-view .gv-toolbar .gv-btn {
+  color: #334155 !important;
+}
 .gv-btn:hover { background: #f1f5f9; }
-.gv-btn.active { background: #eff6ff; color: #1d4ed8; }
+/* Header controls use a neutral active state rather than the application's
+   blue accent so every toolbar action reads consistently. */
+.gantt-view .gv-toolbar .gv-btn.active,
+.gantt-view .gv-toolbar .gv-table-toggle.active {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+}
 .gv-project-btn { font-weight: 600; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 12px; }
 .gv-project-menu { min-width: 220px; max-height: 260px; overflow-y: auto; }
+.gv-project-menu-right { left: auto; right: 0; }
 .gv-project-id { font-size: 10px; font-weight: 700; color: #94a3b8; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; margin-right: 4px; }
 .gv-badge {
   display: inline-flex;
@@ -638,7 +711,7 @@ function handleExport() {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: #2563eb;
+  background: #475569 !important;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -646,7 +719,10 @@ function handleExport() {
 .gv-dot {
   width: 10px; height: 10px; border-radius: 50%; border: 2px solid #cbd5e1; margin-right: 2px;
 }
-.gv-dot.on { background: #2563eb; border-color: #2563eb; }
+.gantt-view .gv-toolbar .gv-dot.on {
+  background: #475569 !important;
+  border-color: #475569 !important;
+}
 /* Dropdown */
 .gv-dropdown-wrap { position: relative; }
 .gv-dropdown-menu {
@@ -661,7 +737,6 @@ function handleExport() {
 .gv-dropdown-item:hover { background: #f1f5f9; }
 .gv-dropdown-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
 /* Filter */
-.gv-filter-overlay { position: absolute; inset: 0; z-index: 49; }
 .gv-filter-dropdown {
   position: absolute; top: 44px; right: 100px; width: 320px;
   background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
@@ -672,7 +747,7 @@ function handleExport() {
   padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; font-weight: 600; color: #1e293b;
 }
 .gv-filter-clear { border: none; background: transparent; font-size: 11px; font-weight: 600; color: #dc2626; cursor: pointer; }
-.gv-filter-body { padding: 10px 14px 14px; max-height: 280px; overflow-y: auto; }
+.gv-filter-body { padding: 10px 14px 14px; overflow: visible; }
 .gv-filter-group { margin-bottom: 12px; }
 .gv-filter-group:last-child { margin-bottom: 0; }
 .gv-filter-group-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
@@ -690,6 +765,13 @@ function handleExport() {
   min-height: 0;
   overflow: hidden;
 }
+.gv-empty {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; background: #fff; color: #94a3b8; text-align: center; pointer-events: none;
+}
+.gv-empty-title { margin: 6px 0 0; font-size: 15px; font-weight: 600; color: #475569; }
+.gv-empty-sub { margin: 0; font-size: 13px; color: #94a3b8; }
 .gv-chart {
   position: relative;
   width: 100%;
@@ -698,12 +780,12 @@ function handleExport() {
 }
 /* Fields panel */
 .gv-fields-panel {
-  position: absolute; right: 0; bottom: 0; width: 240px;
+  position: absolute; top: 0; right: 0; bottom: 0; width: 240px;
   background: #fff; border-left: 1px solid #e2e8f0; z-index: 50;
   display: flex; flex-direction: column; box-shadow: -2px 0 8px rgba(0,0,0,0.04);
 }
 .gv-trash-panel {
-  position: absolute; right: 0; bottom: 0; max-width: 92%;
+  position: absolute; top: 0; right: 0; bottom: 0; max-width: 92%;
   background: #fff; border-left: 1px solid #e2e8f0; z-index: 60;
   display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(15,23,42,.08);
 }

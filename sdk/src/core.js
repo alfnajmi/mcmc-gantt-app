@@ -21,6 +21,48 @@ function capitalizeStatus(status) {
   return status.split(' ').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1) }).join(' ')
 }
 
+// A task/project is overdue when its due date is strictly before today and it
+// has not been completed. Completed work is never flagged.
+//
+// The due date is resolved in priority order because the raw task payload does
+// not always carry a usable `end_date`:
+//   1. plane_target_date — the authoritative Plane due date (YYYY-MM-DD)
+//   2. end_date — DHTMLX's computed/explicit end, when present
+//   3. start_date + duration — reconstructed exclusive end date
+function resolveDueDate(task) {
+  if (task.plane_target_date) {
+    var pt = new Date(task.plane_target_date)
+    if (!isNaN(pt)) return pt
+  }
+  if (task.end_date) {
+    var e = task.end_date instanceof Date ? task.end_date : new Date(task.end_date)
+    if (!isNaN(e)) return e
+  }
+  if (task.start_date && task.duration) {
+    var start = task.start_date instanceof Date ? task.start_date : new Date(task.start_date)
+    if (!isNaN(start)) {
+      var end = new Date(start)
+      end.setDate(end.getDate() + Number(task.duration))
+      return end
+    }
+  }
+  return null
+}
+
+function isTaskOverdue(task) {
+  if (!task) return false
+  if ((task.status || '').toLowerCase() === 'complete') return false
+
+  var due = resolveDueDate(task)
+  if (!due || isNaN(due)) return false
+
+  // Compare on date boundaries so an item due today is not yet "past due".
+  var today = new Date()
+  var todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  var dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  return dueMidnight < todayMidnight
+}
+
 const DEFAULT_COLUMNS = [
   { name: 'text', label: 'Task', tree: true, width: 220, resize: true },
   { name: 'start_date', label: 'Start', align: 'center', width: 100, resize: true, template: function(task) {
@@ -42,23 +84,105 @@ function todayScaleCellClass(date) {
   return date.getFullYear() === today.getFullYear() &&
     date.getMonth() === today.getMonth() &&
     date.getDate() === today.getDate()
-    ? 'scale-today'
+    ? 'scale-today scale-today-day'
     : ''
+}
+
+function isTodayInScalePeriod(date, unit, step) {
+  var today = new Date()
+  today.setHours(0, 0, 0, 0)
+  var cellStart = new Date(date)
+  cellStart.setHours(0, 0, 0, 0)
+  var cellEnd = new Date(cellStart)
+  var cellStep = step || 1
+  if (unit === 'week') cellEnd.setDate(cellEnd.getDate() + 7 * cellStep)
+  else if (unit === 'month') cellEnd.setMonth(cellEnd.getMonth() + cellStep)
+  else if (unit === 'quarter') cellEnd.setMonth(cellEnd.getMonth() + 3 * cellStep)
+  else if (unit === 'year') cellEnd.setFullYear(cellEnd.getFullYear() + cellStep)
+  else cellEnd.setDate(cellEnd.getDate() + cellStep)
+  return today >= cellStart && today < cellEnd
+}
+
+function todayPeriodScaleCellClass(date, unit, step) {
+  return isTodayInScalePeriod(date, unit, step)
+    ? 'scale-today scale-today-period scale-today-' + unit
+    : ''
+}
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const SHORT_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+// ISO-8601 week number (weeks start Monday; week 1 contains the first Thursday).
+function getWeekNumber(date) {
+  var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  var dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7)
 }
 
 const SCALES = {
   year: [
-    { unit: 'year', step: 1, format: '%Y' },
-    { unit: 'month', step: 3, format: '%M' },
+    {
+      unit: 'year',
+      step: 1,
+      css: function (date) { return todayPeriodScaleCellClass(date, 'year', 1) },
+      format: '%Y',
+    },
+    {
+      unit: 'quarter',
+      step: 1,
+      css: function (date) { return todayPeriodScaleCellClass(date, 'quarter', 1) },
+      format: function (date) {
+        return 'Q' + (Math.floor(date.getMonth() / 3) + 1)
+      },
+    },
   ],
-  day: [{ unit: 'day', step: 1, format: '%d %M', css: todayScaleCellClass }],
+  day: [
+    {
+      unit: 'day',
+      step: 1,
+      css: todayScaleCellClass,
+      format: function (date) {
+        return date.getDate() + ' ' + SHORT_MONTHS[date.getMonth()]
+      },
+    },
+  ],
   week: [
-    { unit: 'week', step: 1, format: 'Week %W' },
-    { unit: 'day', step: 1, format: '%d %D', css: todayScaleCellClass },
+    {
+      unit: 'week',
+      step: 1,
+      css: function (date) { return todayPeriodScaleCellClass(date, 'week', 1) },
+      format: function (date) {
+        var end = new Date(date)
+        end.setDate(end.getDate() + 6)
+        return 'W' + getWeekNumber(date) + ' ' + SHORT_MONTHS[date.getMonth()] + ' ' + date.getDate() + ' - ' + end.getDate()
+      },
+    },
+    {
+      unit: 'day',
+      step: 1,
+      css: todayScaleCellClass,
+      format: function (date) {
+        return SHORT_DAYS[date.getDay()] + ' ' + date.getDate()
+      },
+    },
   ],
   month: [
-    { unit: 'month', step: 1, format: '%F %Y' },
-    { unit: 'week', step: 1, format: '%W' },
+    {
+      unit: 'month',
+      step: 1,
+      css: function (date) { return todayPeriodScaleCellClass(date, 'month', 1) },
+      format: '%F %Y',
+    },
+    {
+      unit: 'week',
+      step: 1,
+      css: function (date) { return todayPeriodScaleCellClass(date, 'week', 1) },
+      format: function (date) {
+        return 'W' + getWeekNumber(date)
+      },
+    },
   ],
 }
 
@@ -116,6 +240,10 @@ const GANTT_CUSTOM_CSS = `
     background: #eff6ff !important;
   }
   .gantt_tree_content {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
     font-size: 13px !important;
     color: #1e293b !important;
   }
@@ -137,6 +265,29 @@ const GANTT_CUSTOM_CSS = `
   /* --- Task bars --- */
   .gantt_task_line {
     border-radius: 4px !important;
+  }
+  /* Make the resize edges easy to hit so dragging near a bar end does not
+     accidentally start DHTMLX's whole-task move mode. */
+  .gantt_task_line .gantt_task_drag.task_left,
+  .gantt_task_line .gantt_task_drag.task_right {
+    width: 14px !important;
+    z-index: 12 !important;
+    cursor: ew-resize !important;
+  }
+  .gantt_task_line .gantt_task_drag.task_left { left: -7px !important; }
+  .gantt_task_line .gantt_task_drag.task_right { right: -7px !important; }
+  .gantt_task_line:hover .gantt_task_drag.task_left::after,
+  .gantt_task_line:hover .gantt_task_drag.task_right::after,
+  .gantt_task_line.gantt_selected .gantt_task_drag.task_left::after,
+  .gantt_task_line.gantt_selected .gantt_task_drag.task_right::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 6px;
+    width: 2px;
+    border-radius: 1px;
+    background: rgba(71, 85, 105, 0.7);
   }
   .gantt_task_line .gantt_task_progress {
     background: rgba(71, 85, 105, 0.12);
@@ -177,6 +328,21 @@ const GANTT_CUSTOM_CSS = `
   .gantt_task_line.gantt_task.status-todo {
     background: #e2e8f0 !important;
     border-color: #cbd5e1 !important;
+  }
+
+  /* Overdue — past the due date and not complete. Red overrides the
+     status color (and the project bar) so slipping work is impossible to miss. */
+  .gantt_task_line.gantt-overdue,
+  .gantt_task_line.gantt_task.gantt-overdue,
+  .gantt_task_line.gantt_project.gantt-overdue {
+    background: #fecaca !important;
+    border-color: #ef4444 !important;
+  }
+  .gantt_task_line.gantt-overdue .gantt_task_progress {
+    background: rgba(185, 28, 28, 0.18) !important;
+  }
+  .gantt_task_line.gantt-overdue .gantt_task_content {
+    color: #b91c1c !important;
   }
 
   /* Default task (no status) — light blue */
@@ -251,14 +417,17 @@ const GANTT_CUSTOM_CSS = `
 
   /* --- Weekend striping — diagonal hatched pattern --- */
   .weekend-cell {
+    /* Match Plane's sketched weekend columns with a subtle diagonal hatch
+       while keeping the timeline light enough for bars and labels to read. */
+    background-color: #f8fafc !important;
     background-image: repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 3px,
-      rgba(148, 163, 184, 0.08) 3px,
-      rgba(148, 163, 184, 0.08) 6px
+      135deg,
+      rgba(148, 163, 184, 0.22) 0,
+      rgba(148, 163, 184, 0.22) 1px,
+      transparent 1px,
+      transparent 4px
     ) !important;
-    background-color: rgba(241, 245, 249, 0.6) !important;
+    background-size: 6px 6px !important;
   }
 
   /* Today cells remain available as semantic hooks; the visible indicator is
@@ -290,13 +459,46 @@ const GANTT_CUSTOM_CSS = `
     color: #ffffff !important;
     font-weight: 700 !important;
     position: relative;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='54' height='24' viewBox='0 0 54 24'%3E%3Crect width='54' height='24' rx='5' fill='%23ef4444'/%3E%3C/svg%3E") !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='24' viewBox='0 0 220 24'%3E%3Crect width='220' height='24' rx='5' fill='%23ef4444'/%3E%3C/svg%3E") !important;
     background-position: center !important;
-    background-size: 54px 24px !important;
+    background-size: 220px 24px !important;
     background-repeat: no-repeat !important;
   }
   .gantt_scale_cell.scale-today::after {
     display: none !important;
+  }
+  /* Compact day labels get their own true pill so the rounded ends remain
+     visible instead of showing the clipped center of the wide period SVG. */
+  .gantt_scale_cell.scale-today-day {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='38' height='20' viewBox='0 0 38 20'%3E%3Crect width='38' height='20' rx='4' fill='%23ef4444'/%3E%3C/svg%3E") !important;
+    background-size: 38px 20px !important;
+  }
+  /* Keep active period/week labels on the existing wide treatment. */
+  .gantt_scale_cell.scale-today-period,
+  .gantt_scale_cell.scale-today-week {
+    background-size: 220px 24px !important;
+  }
+  /* The active week label owns its pill so DHTMLX cannot mask the first/last
+     characters when it omits the period-specific class from the scale cell. */
+  .gantt-scale-today-label {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 5px;
+    box-sizing: border-box;
+    background: #ef4444;
+    color: #ffffff;
+    line-height: 24px;
+    white-space: nowrap;
+  }
+  /* Month and Year use content-sized pills; Day keeps its dedicated SVG and
+     Week keeps the wider full-range label accepted by the UI. */
+  .gantt-scale-today-label--compact {
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 4px;
+    line-height: 20px;
   }
 
   /* Hide default marker (using cell border approach instead) */
@@ -703,10 +905,17 @@ export function mountGantt(options) {
   let dpInstance = null
   let sidebar = null
   let zoomControlsEl = null
+  let addTaskButton = null
+  let addTaskButtonFrame = null
+  let addTaskObserver = null
   let todayLineEl = null
   let todayLineCleanup = null
+  let todayScaleObserver = null
+  let todayScaleLabelFrame = null
   let labelLayoutFrame = null
   let labelLayoutCleanup = null
+  let containerResizeObserver = null
+  let containerResizeFrame = null
   let gridVisible = showGrid !== false
   let currentScale = SCALES[scale] ? scale : 'month'
 
@@ -758,8 +967,8 @@ export function mountGantt(options) {
     // Projects, so dhtmlx must not infer project type from child rows.
     gantt.config.auto_types = false
     gantt.config.fit_tasks = true
-    gantt.config.row_height = 36
-    gantt.config.bar_height = 22
+    gantt.config.row_height = 32
+    gantt.config.bar_height = 24
     gantt.config.scale_height = scaleHeight
     // Continue the actual timeline grid and custom cell backgrounds through
     // unused viewport space without creating fake tasks or extra scrolling.
@@ -801,6 +1010,11 @@ export function mountGantt(options) {
         var s = task.status.toLowerCase().replace(/\s+/g, '-')
         classes.push('status-' + s)
       }
+
+      // Overdue alert — bar turns red when the due date has passed and the
+      // item is not yet complete, so slipping work stands out at a glance.
+      if (isTaskOverdue(task)) classes.push('gantt-overdue')
+
       return classes.join(' ')
     }
 
@@ -814,30 +1028,65 @@ export function mountGantt(options) {
       return ''
     }
 
-    // Timeline cell styling — weekend striping only makes sense when each
-    // rendered cell represents one day. At broader scales a quarter/month may
+    // Timeline cell styling. Weekend striping only makes sense when each
+    // rendered cell represents one day; at broader scales a quarter/month may
     // begin on a weekend, which would incorrectly stripe the entire period.
+    // The today marker is computed from the cell's actual span so it lights up
+    // at every zoom level (day/week/month/quarter/year), not just day scale.
     gantt.templates.timeline_cell_class = function (task, date) {
-      var classes = []
       var scales = gantt.config.scales || []
-      var bottomScale = scales.length ? scales[scales.length - 1] : null
+      var bottomScale = scales.length ? scales[scales.length - 1] : { unit: 'day', step: 1 }
+      var unit = bottomScale.unit
+      var step = bottomScale.step || 1
+      var classes = []
+
       var day = date.getDay()
-      if (bottomScale && bottomScale.unit === 'day' && (day === 0 || day === 6)) {
+      if (unit === 'day' && (day === 0 || day === 6)) {
         classes.push('weekend-cell')
       }
+
       var today = new Date()
-      if (
-        date.getFullYear() === today.getFullYear() &&
-        date.getMonth() === today.getMonth() &&
-        date.getDate() === today.getDate()
-      ) {
+      today.setHours(0, 0, 0, 0)
+      var cellStart = new Date(date)
+      cellStart.setHours(0, 0, 0, 0)
+      var cellEnd = new Date(cellStart)
+      if (unit === 'day') cellEnd.setDate(cellEnd.getDate() + step)
+      else if (unit === 'week') cellEnd.setDate(cellEnd.getDate() + 7 * step)
+      else if (unit === 'month') cellEnd.setMonth(cellEnd.getMonth() + step)
+      else if (unit === 'quarter') cellEnd.setMonth(cellEnd.getMonth() + 3 * step)
+      else if (unit === 'year') cellEnd.setFullYear(cellEnd.getFullYear() + step)
+      else cellEnd.setDate(cellEnd.getDate() + 7)
+
+      if (today >= cellStart && today < cellEnd) {
         classes.push('today-cell')
       }
+
       return classes.join(' ')
     }
 
-    // Highlight today in scale header
-    gantt.templates.scale_cell_class = todayScaleCellClass
+    // Highlight today in the scale header. Uses the bottom scale's unit so the
+    // red pill lands on the cell that CONTAINS today at every zoom level
+    // (day/week/month/quarter/year), not only when a cell is exactly today.
+    gantt.templates.scale_cell_class = function (date) {
+      var scales = gantt.config.scales || []
+      var bottomScale = scales.length ? scales[scales.length - 1] : { unit: 'day', step: 1 }
+      var unit = bottomScale.unit
+      var step = bottomScale.step || 1
+
+      var today = new Date()
+      today.setHours(0, 0, 0, 0)
+      var cellStart = new Date(date)
+      cellStart.setHours(0, 0, 0, 0)
+      var cellEnd = new Date(cellStart)
+      if (unit === 'day') cellEnd.setDate(cellEnd.getDate() + step)
+      else if (unit === 'week') cellEnd.setDate(cellEnd.getDate() + 7 * step)
+      else if (unit === 'month') cellEnd.setMonth(cellEnd.getMonth() + step)
+      else if (unit === 'quarter') cellEnd.setMonth(cellEnd.getMonth() + 3 * step)
+      else if (unit === 'year') cellEnd.setFullYear(cellEnd.getFullYear() + step)
+      else cellEnd.setDate(cellEnd.getDate() + 7)
+
+      return today >= cellStart && today < cellEnd ? 'scale-today' : ''
+    }
 
     // Event callbacks
     if (onTaskClick) {
@@ -1049,9 +1298,133 @@ export function mountGantt(options) {
       todayLineEl.style.height = `${Math.round(dataRect.height)}px`
     }
 
+    // Day keeps its dedicated SVG pill. Week preserves the accepted full
+    // ISO-week range label, while Month and Year convert both active scale
+    // rows into content-sized pills without synthesizing longer text.
+    function applyTodayScaleLabel(cell, label, compact) {
+      if (!cell || !label) return
+
+      let pill = cell.querySelector('.gantt-scale-today-label')
+      if (!pill) {
+        cell.textContent = ''
+        pill = document.createElement('span')
+        cell.appendChild(pill)
+      }
+      pill.className = 'gantt-scale-today-label' +
+        (compact ? ' gantt-scale-today-label--compact' : '')
+      if (pill.textContent !== label) pill.textContent = label
+      cell.setAttribute('aria-label', label)
+      cell.style.setProperty('background-image', 'none', 'important')
+      cell.style.setProperty('overflow', 'visible', 'important')
+    }
+
+    function findTodayScaleCell(unit, rowIndex) {
+      const specific = container.querySelector('.gantt_scale_cell.scale-today-' + unit)
+      if (specific) return specific
+      const rows = container.querySelectorAll('.gantt_scale_line')
+      return rows[rowIndex]
+        ? rows[rowIndex].querySelector('.gantt_scale_cell.scale-today')
+        : null
+    }
+
+    function decorateTodayScaleLabels() {
+      if (destroyed || currentScale === 'day') return
+
+      if (currentScale === 'week') {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekStart.getDate() + 6)
+        const weekPrefix = 'W' + getWeekNumber(today)
+        const label = weekPrefix + ' ' + SHORT_MONTHS[weekStart.getMonth()] + ' ' +
+          weekStart.getDate() + ' - ' + weekEnd.getDate()
+        const cells = Array.from(container.querySelectorAll('.gantt_scale_cell'))
+        const cell = cells.find((candidate) => {
+          const text = candidate.textContent.replace(/\s+/g, ' ').trim()
+          return candidate.classList.contains('scale-today') && /^W\d+\b/.test(text)
+        }) || cells.find((candidate) => {
+          const text = candidate.textContent.replace(/\s+/g, ' ').trim()
+          return text === weekPrefix || text.startsWith(weekPrefix + ' ')
+        })
+        applyTodayScaleLabel(cell, label, false)
+        return
+      }
+
+      const units = currentScale === 'month'
+        ? ['month', 'week']
+        : currentScale === 'year'
+          ? ['year', 'quarter']
+          : []
+
+      units.forEach((unit, rowIndex) => {
+        const cell = findTodayScaleCell(unit, rowIndex)
+        if (!cell) return
+        const existingPill = cell.querySelector('.gantt-scale-today-label')
+        const label = (existingPill ? existingPill.textContent : cell.textContent)
+          .replace(/\s+/g, ' ')
+          .trim()
+        applyTodayScaleLabel(cell, label, true)
+      })
+    }
+
+    function scheduleTodayScaleLabels() {
+      if (todayScaleLabelFrame !== null) return
+      todayScaleLabelFrame = window.requestAnimationFrame(() => {
+        todayScaleLabelFrame = null
+        decorateTodayScaleLabels()
+      })
+    }
+
+    const scaleHeader = container.querySelector('.gantt_task_scale')
+    if (scaleHeader && typeof window.MutationObserver === 'function') {
+      todayScaleObserver = new window.MutationObserver(scheduleTodayScaleLabels)
+      todayScaleObserver.observe(scaleHeader, { childList: true, subtree: true })
+    }
+
+    // Sync hover highlighting between the grid rows and the timeline rows so
+    // pointing at either side highlights the same task on both.
+    let hoverSyncBound = false
+    let lastHoverId = null
+    function setupRowHoverSync() {
+      if (hoverSyncBound) return
+      const gridData = container.querySelector('.gantt_grid_data')
+      const taskArea = container.querySelector('.gantt_data_area')
+      if (!gridData || !taskArea) return
+      hoverSyncBound = true
+
+      function highlightRow(id) {
+        if (id === lastHoverId) return
+        container
+          .querySelectorAll('.gantt_row.hover, .gantt_task_row.hover')
+          .forEach((el) => el.classList.remove('hover'))
+        lastHoverId = id
+        if (!id) return
+        const gridRow = gridData.querySelector(`[data-task-id="${id}"]`)
+        const taskRow = taskArea.querySelector(`[data-task-id="${id}"]`)
+        if (gridRow) gridRow.classList.add('hover')
+        if (taskRow) taskRow.classList.add('hover')
+      }
+
+      gridData.addEventListener('mouseover', (e) => {
+        const row = e.target.closest('.gantt_row')
+        highlightRow(row ? row.getAttribute('data-task-id') : null)
+      })
+      taskArea.addEventListener('mouseover', (e) => {
+        const row = e.target.closest('.gantt_task_row')
+        highlightRow(row ? row.getAttribute('data-task-id') : null)
+      })
+      gridData.addEventListener('mouseleave', () => highlightRow(null))
+      taskArea.addEventListener('mouseleave', () => highlightRow(null))
+    }
+
     gantt.attachEvent('onGanttRender', () => {
       window.requestAnimationFrame(renderTodayLine)
+      scheduleTodayScaleLabels()
+      setupRowHoverSync()
     })
+    scheduleTodayScaleLabels()
     gantt.attachEvent('onGanttScroll', renderTodayLine)
     window.addEventListener('resize', renderTodayLine)
     todayLineCleanup = () => window.removeEventListener('resize', renderTodayLine)
@@ -1169,6 +1542,39 @@ export function mountGantt(options) {
       }
     }
 
+    // DHTMLX calculates its internal grid/timeline widths at initialization.
+    // Parent-only width changes (for example a collapsing navigation sidebar)
+    // do not trigger a window resize, so observe the mount container directly
+    // and keep DHTMLX synchronized throughout the CSS transition.
+    if (typeof window.ResizeObserver === 'function') {
+      let lastContainerWidth = Math.round(container.getBoundingClientRect().width)
+      let lastContainerHeight = Math.round(container.getBoundingClientRect().height)
+
+      containerResizeObserver = new window.ResizeObserver((entries) => {
+        if (destroyed) return
+        const rect = entries[0]?.contentRect
+        if (!rect) return
+        const width = Math.round(rect.width)
+        const height = Math.round(rect.height)
+        if (width === lastContainerWidth && height === lastContainerHeight) return
+        lastContainerWidth = width
+        lastContainerHeight = height
+        if (containerResizeFrame !== null) return
+
+        containerResizeFrame = window.requestAnimationFrame(() => {
+          containerResizeFrame = null
+          if (destroyed || window.gantt !== gantt) return
+          const scroll = gantt.getScrollState ? gantt.getScrollState() : null
+          if (typeof gantt.setSizes === 'function') gantt.setSizes()
+          else gantt.render()
+          if (scroll && gantt.scrollTo) gantt.scrollTo(scroll.x, scroll.y)
+          scheduleTaskLabelLayout()
+          renderTodayLine()
+        })
+      })
+      containerResizeObserver.observe(container)
+    }
+
     if (showZoomControls) {
       zoomControlsEl = document.createElement('div')
       zoomControlsEl.className = 'mcmc-gantt-zoom-controls'
@@ -1191,50 +1597,80 @@ export function mountGantt(options) {
       gantt.showDate(new Date())
       scheduleTaskLabelLayout()
       renderTodayLine()
-      // Inject Add Task button after data loads
-      if (editable) injectAddTaskButton()
+      // Ensure Add Task is attached after data/header rendering settles.
+      if (editable) scheduleAddTaskButton()
     })
 
-    // Add Task button in grid header
-    function injectAddTaskButton() {
-      if (container.querySelector('.gantt-add-task-btn')) return
+    // Add Task button in grid header. DHTMLX owns and may replace the header
+    // cell during renders, so retain one button and reattach it to the current
+    // live cell instead of creating a new node or trusting a stale subtree.
+    function ensureAddTaskButton() {
+      if (destroyed || !editable || window.gantt !== gantt) return
       const nameCell = container.querySelector('.gantt_grid_head_cell')
       if (!nameCell) return
+
       nameCell.style.position = 'relative'
       nameCell.style.overflow = 'visible'
-      const btn = document.createElement('button')
-      btn.className = 'gantt-add-task-btn'
-      btn.title = 'Add Task'
-      btn.textContent = '+'
-      btn.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:1px dashed #cbd5e1;border-radius:4px;background:#fff;color:#64748b;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:all 0.12s;'
-      btn.addEventListener('mousedown', (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        if (sidebar) {
-          sidebar.open({
-            id: null,
-            plane_id: null,
-            plane_type: 'issue',
-            type: 'task',
-            text: '',
-            description: '',
-            status: 'to do',
-            start_date: new Date().toISOString().split('T')[0],
-            end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-            assignee: '',
-            priority: '',
-            sequence_id: null,
-            _isNew: true,
-          })
-        }
-      }, true)
-      nameCell.appendChild(btn)
+
+      if (!addTaskButton) {
+        addTaskButton = document.createElement('button')
+        addTaskButton.type = 'button'
+        addTaskButton.className = 'gantt-add-task-btn'
+        addTaskButton.title = 'Add Task'
+        addTaskButton.setAttribute('aria-label', 'Add Task')
+        addTaskButton.textContent = '+'
+        addTaskButton.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:1px dashed #cbd5e1;border-radius:4px;background:#fff;color:#64748b;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:all 0.12s;'
+        addTaskButton.addEventListener('mousedown', (event) => {
+          event.stopPropagation()
+          event.preventDefault()
+          if (sidebar) {
+            sidebar.open({
+              id: null,
+              plane_id: null,
+              plane_type: 'issue',
+              type: 'task',
+              text: '',
+              description: '',
+              status: 'to do',
+              start_date: new Date().toISOString().split('T')[0],
+              end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+              assignee: '',
+              priority: '',
+              sequence_id: null,
+              _isNew: true,
+            })
+          }
+        }, true)
+      }
+
+      if (addTaskButton.parentNode !== nameCell) {
+        nameCell.appendChild(addTaskButton)
+      }
     }
 
-    // Re-inject on render
-    gantt.attachEvent('onGanttRender', () => {
-      if (editable) setTimeout(injectAddTaskButton, 50)
-    })
+    function scheduleAddTaskButton() {
+      if (destroyed || !editable || addTaskButtonFrame !== null) return
+      addTaskButtonFrame = window.requestAnimationFrame(() => {
+        addTaskButtonFrame = null
+        ensureAddTaskButton()
+      })
+    }
+
+    // Reattach after every full render; repeated calls are coalesced and safe.
+    gantt.attachEvent('onGanttRender', scheduleAddTaskButton)
+
+    // DHTMLX can replace the grid header after its render/drag callbacks have
+    // already completed. Observe the owned DOM and recover whenever the
+    // retained button is no longer attached to the current live header cell.
+    if (typeof window.MutationObserver === 'function') {
+      addTaskObserver = new window.MutationObserver(() => {
+        if (destroyed || !editable) return
+        const liveNameCell = container.querySelector('.gantt_grid_head_cell')
+        if (!liveNameCell || addTaskButton?.parentNode === liveNameCell) return
+        scheduleAddTaskButton()
+      })
+      addTaskObserver.observe(container, { childList: true, subtree: true })
+    }
 
     // DataProcessor for edits
     if (editable) {
@@ -1251,6 +1687,40 @@ export function mountGantt(options) {
           body: JSON.stringify(order),
         })
         return true
+      })
+
+      // Persist bar move/resize back to Plane and keep the open editor synced.
+      // Ignore progress/link drags: they do not change the date range.
+      gantt.attachEvent('onAfterTaskDrag', (id, mode) => {
+        // Drag/resize can replace the grid header after the render event; use
+        // the deterministic drag-completion event to restore Add Task too.
+        scheduleAddTaskButton()
+        if (mode !== 'move' && mode !== 'resize') return
+
+        const task = gantt.getTask(id)
+        if (!task || !task.plane_id || task.plane_type !== 'issue') return
+        const start = task.start_date instanceof Date ? task.start_date : new Date(task.start_date)
+        if (isNaN(start)) return
+        const end = new Date(start)
+        end.setDate(end.getDate() + (task.duration || 1))
+        const fmt = (date) =>
+          `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        const startDate = fmt(start)
+        const endDate = fmt(end)
+
+        // The sidebar owns a cloned task, so update both the live Plane fields
+        // and that clone immediately instead of waiting for a full data reload.
+        task.plane_start_date = startDate
+        task.plane_target_date = endDate
+        if (sidebar) sidebar.updateDates(id, startDate, endDate)
+
+        fetch(`${apiUrl}/issues/${task.plane_id}/dates`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start_date: startDate, target_date: endDate }),
+        }).then((response) => {
+          if (!response.ok) throw new Error(`Failed to persist task dates (${response.status})`)
+        }).catch((error) => console.error('Failed to persist task dates to Plane:', error))
       })
     }
   })
@@ -1293,9 +1763,31 @@ export function mountGantt(options) {
       if (dpInstance) dpInstance.destructor()
       if (sidebar) sidebar.destroy()
       if (zoomControlsEl) zoomControlsEl.remove()
+      if (addTaskObserver) {
+        addTaskObserver.disconnect()
+        addTaskObserver = null
+      }
+      if (addTaskButtonFrame !== null) {
+        window.cancelAnimationFrame(addTaskButtonFrame)
+        addTaskButtonFrame = null
+      }
+      if (addTaskButton) {
+        addTaskButton.remove()
+        addTaskButton = null
+      }
       if (todayLineEl) todayLineEl.remove()
       if (todayLineCleanup) todayLineCleanup()
+      if (todayScaleObserver) todayScaleObserver.disconnect()
+      if (todayScaleLabelFrame !== null) {
+        window.cancelAnimationFrame(todayScaleLabelFrame)
+        todayScaleLabelFrame = null
+      }
       if (labelLayoutCleanup) labelLayoutCleanup()
+      if (containerResizeObserver) containerResizeObserver.disconnect()
+      if (containerResizeFrame !== null) {
+        window.cancelAnimationFrame(containerResizeFrame)
+        containerResizeFrame = null
+      }
       if (window.gantt) window.gantt.destructor()
     },
   }
