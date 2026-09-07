@@ -14,9 +14,15 @@ import requests
 import os
 
 API_BASE = os.environ.get("PLANE_BASE_URL", "https://plane-digd.mcmc.gov.my")
-API_KEY = os.environ.get("PLANE_API_TOKEN", "plane_api_8ee6a72d75bd4469a3e12819a2ad81cb")
+API_KEY = os.environ.get("PLANE_API_TOKEN")
 WORKSPACE = os.environ.get("PLANE_WORKSPACE_SLUG", "persada")
 PROJECT_ID = os.environ.get("PLANE_PROJECT_ID", "9bd17731-fa8f-40a7-81b6-31a3aae3ad63")
+
+if not API_KEY:
+    raise SystemExit(
+        "PLANE_API_TOKEN is not set. Export it (e.g. from gantt-app/.env) before "
+        "running this script; the token must never be hardcoded here."
+    )
 
 HEADERS = {
     "X-API-Key": API_KEY,
