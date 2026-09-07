@@ -74,6 +74,9 @@ class McmcGantt extends HTMLElement {
         .gantt_task_line.gantt_task.status-in-progress { background: #bfdbfe !important; border-color: #93c5fd !important; }
         .gantt_task_line.gantt_task.status-planning { background: #ddd6fe !important; border-color: #c4b5fd !important; }
         .gantt_task_line.gantt_task.status-todo { background: #e2e8f0 !important; border-color: #cbd5e1 !important; }
+        .gantt_task_line.gantt-overdue, .gantt_task_line.gantt_task.gantt-overdue, .gantt_task_line.gantt_project.gantt-overdue { background: #fecaca !important; border-color: #ef4444 !important; }
+        .gantt_task_line.gantt-overdue .gantt_task_progress { background: rgba(185,28,28,0.18) !important; }
+        .gantt_task_line.gantt-overdue .gantt_task_content { color: #b91c1c !important; }
         .gantt_task_line.milestone_task { background: #fde68a !important; border-color: #fcd34d !important; }
         .gantt_task_line .gantt_task_progress { background: rgba(71,85,105,0.12); border-radius: 4px; }
         .gantt_task_line.gantt_task .gantt_task_content { left: calc(100% + 26px) !important; width: max-content !important; min-width: max-content !important; color: #334155 !important; font-size: 13px !important; font-weight: 600 !important; white-space: nowrap !important; overflow: visible !important; text-align: left !important; pointer-events: none; }
