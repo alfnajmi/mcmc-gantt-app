@@ -1,14 +1,14 @@
-# @mcmc/gantt-chart SDK
+# @alfnajmi__/gantt-chart SDK
 
 Embeddable Gantt chart component for any web application. No iframe needed — renders directly in your page's DOM.
 
-Published to GitHub Packages at `https://devgithub.mcmc.gov.my/_registry/npm/`.
+Published publicly on npm as [`@alfnajmi__/gantt-chart`](https://www.npmjs.com/package/@alfnajmi__/gantt-chart).
 
-> Documentation last reviewed: 18 August 2026
+> Documentation last reviewed: 7 September 2026
 >
 > This document is the integration source of truth for SDK consumers.
 
-## Features (v1.3.11)
+## Features (v1.4.9)
 
 - Task detail popup on bar click (Task/Project badge, status, dates, assignee, duration)
 - "View in Plane" button in popup (links directly to issue/module in Plane)
@@ -50,7 +50,7 @@ You don't need to set up a backend or manage environment variables. The Gantt AP
 
 ```vue
 <script setup>
-import GanttView from '@mcmc/gantt-chart/view'
+import GanttView from '@alfnajmi__/gantt-chart/view'
 </script>
 
 <template>
@@ -78,27 +78,11 @@ That's it. No `.env` files, no backend setup, no database. The component handles
 
 ## Installation
 
-Add `.npmrc` to scope `@mcmc` packages to the private registry:
-
-```
-@mcmc:registry=https://devgithub.mcmc.gov.my/_registry/npm/
-//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}
-```
-
-Then install:
+Install the public package directly from npm. No custom registry or `.npmrc` configuration is required:
 
 ```bash
-npm install @mcmc/gantt-chart
+npm install @alfnajmi__/gantt-chart
 ```
-
-> **Off the office network / VPN, install fails with `ETIMEDOUT ... devminio.mcmc.gov.my:9000`?**
-> Package metadata resolves fine through `devgithub.mcmc.gov.my` (reachable over 443),
-> but the tarball itself is fetched from a separate internal MinIO host/port that isn't
-> exposed the same way. This is a firewall gap on the registry side, not a problem with
-> your `.npmrc` — see the [persada-web README's troubleshooting
-> section](https://devgithub.mcmc.gov.my/mcmc/persada-web/blob/staging/README.md#troubleshooting-etimedout-connecting-to-devminiomcmcgovmy)
-> for the full writeup and a workaround for updating version pins without tarball
-> access.
 
 ## Three ways to use
 
@@ -106,7 +90,7 @@ npm install @mcmc/gantt-chart
 
 ```vue
 <script setup>
-import GanttView from '@mcmc/gantt-chart/view'
+import GanttView from '@alfnajmi__/gantt-chart/view'
 </script>
 
 <template>
@@ -152,8 +136,8 @@ Fields and Trash remain mutually exclusive:
 
 ```vue
 <script setup>
-import GanttFieldsPanel from '@mcmc/gantt-chart/fields-panel'
-import { useGanttSidebars } from '@mcmc/gantt-chart/sidebars'
+import GanttFieldsPanel from '@alfnajmi__/gantt-chart/fields-panel'
+import { useGanttSidebars } from '@alfnajmi__/gantt-chart/sidebars'
 
 const {
   fieldsOpen,
@@ -192,7 +176,7 @@ controller internally, making the SDK the source of truth for sidebar behavior.
 
 ```vue
 <script setup>
-import GanttChart from '@mcmc/gantt-chart/vue'
+import GanttChart from '@alfnajmi__/gantt-chart/vue'
 </script>
 
 <template>
@@ -217,7 +201,7 @@ import GanttChart from '@mcmc/gantt-chart/vue'
 ### 3. Imperative JS API
 
 ```js
-import { mountGantt } from '@mcmc/gantt-chart'
+import { mountGantt } from '@alfnajmi__/gantt-chart'
 
 const gantt = mountGantt({
   container: document.getElementById('my-gantt'),
@@ -300,21 +284,18 @@ The SDK injects CSS automatically for:
 
 ## Publishing a new version
 
+Publishing is handled by the GitHub.com `Publish SDK` workflow whenever package or SDK changes reach the cloud repository's `staging` branch. Pull requests are validated before merge, and every publishable change must commit a new, previously unpublished version in both `sdk/package.json` and `sdk/package-lock.json`.
+
+For a manual release from an authenticated environment:
+
 ```bash
 cd sdk
-# 1. Bump version in package.json
-# 2. Build and publish (prepublishOnly runs build automatically)
-npm publish
+npm ci
+npm run build
+NODE_AUTH_TOKEN=<npm-token> npm publish --access public
 ```
 
-Authenticate through an environment variable or CI secret; do not commit the token:
-
-```bash
-export NPM_TOKEN=<package-token>
-npm config set //devgithub.mcmc.gov.my/_registry/npm/:_authToken "$NPM_TOKEN"
-```
-
-Publishing requires `write:packages`; installation only requires `read:packages`.
+Use an npm automation token with publish access to the `@alfnajmi__` scope; never commit the token.
 
 ## How it works
 
