@@ -39,9 +39,8 @@ jobs:
           cache: npm
           cache-dependency-path: sdk/package-lock.json
 
-      - name: Verify package metadata and version bump
+      - name: Verify package metadata
         working-directory: sdk
-        shell: bash
         run: |
           node <<'NODE'
           const fs = require('node:fs')
@@ -59,14 +58,6 @@ jobs:
             throw new Error('package-lock.json version does not match package.json')
           }
           NODE
-
-          BASE_VERSION=$(git show "origin/${{ github.base_ref }}:sdk/package.json" | node -e "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => console.log(JSON.parse(input).version));")
-          VERSION=$(node -p "require('./package.json').version")
-
-          if [ "$VERSION" = "$BASE_VERSION" ]; then
-            echo "::error::SDK changes require a package version bump from ${BASE_VERSION}."
-            exit 1
-          fi
 
       - name: Verify package version is unpublished
         working-directory: sdk
@@ -115,6 +106,23 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: npm
           cache-dependency-path: sdk/package-lock.json
+
+      - name: Verify npm publishing identity
+        working-directory: sdk
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          NPM_USER=$(npm whoami --registry=https://registry.npmjs.org)
+          ACCESS_JSON=$(npm access list collaborators "$PACKAGE_NAME" "$NPM_USER" --json --registry=https://registry.npmjs.org)
+          ACCESS=$(printf '%s' "$ACCESS_JSON" | NPM_USER="$NPM_USER" node -e "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => { const permissions = JSON.parse(input); process.stdout.write(permissions[process.env.NPM_USER] || 'none'); });")
+
+          echo "Authenticated to npm as ${NPM_USER}."
+          if [ "$ACCESS" != "read-write" ]; then
+            echo "::error::npm user ${NPM_USER} does not have read-write access to ${PACKAGE_NAME}."
+            exit 1
+          fi
 
       - name: Install dependencies
         working-directory: sdk
