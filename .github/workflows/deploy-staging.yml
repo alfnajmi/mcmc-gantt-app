@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   deploy:
-    if: github.event.pull_request.merged == true
+    if: >-
+      github.server_url == 'https://devgithub.mcmc.gov.my' &&
+      github.event.pull_request.merged == true
     runs-on: [self-hosted, Linux, X64]
     environment: Staging
 
