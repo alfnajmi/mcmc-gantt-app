@@ -3,24 +3,107 @@ name: Publish SDK
 on:
   pull_request:
     branches: [staging]
-    types: [closed]
     paths:
       - 'sdk/src/**'
       - 'sdk/vite.config.js'
+      - 'sdk/package.json'
+      - 'sdk/package-lock.json'
+  push:
+    branches: [staging]
+    paths:
+      - 'sdk/src/**'
+      - 'sdk/vite.config.js'
+      - 'sdk/package.json'
+      - 'sdk/package-lock.json'
   workflow_dispatch: {}
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
-    runs-on: [self-hosted, Linux, X64]
-    environment: Staging
+  validate:
+    if: github.server_url == 'https://github.com' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Verify package metadata and version bump
+        working-directory: sdk
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'))
+          const root = lock.packages?.['']
+
+          if (pkg.name !== '@alfnajmi__/gantt-chart') {
+            throw new Error(`Unexpected package name: ${pkg.name}`)
+          }
+          if (lock.name !== pkg.name || root?.name !== pkg.name) {
+            throw new Error('package-lock.json package name does not match package.json')
+          }
+          if (lock.version !== pkg.version || root?.version !== pkg.version) {
+            throw new Error('package-lock.json version does not match package.json')
+          }
+          NODE
+
+          BASE_VERSION=$(git show "origin/${{ github.base_ref }}:sdk/package.json" | node -e "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => console.log(JSON.parse(input).version));")
+          VERSION=$(node -p "require('./package.json').version")
+
+          if [ "$VERSION" = "$BASE_VERSION" ]; then
+            echo "::error::SDK changes require a package version bump from ${BASE_VERSION}."
+            exit 1
+          fi
+
+      - name: Verify package version is unpublished
+        working-directory: sdk
+        shell: bash
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+
+          set +e
+          LOOKUP_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry=https://registry.npmjs.org 2>&1)
+          LOOKUP_STATUS=$?
+          set -e
+
+          if [ "$LOOKUP_STATUS" -eq 0 ]; then
+            echo "::error::${PACKAGE_NAME}@${VERSION} is already published."
+            exit 1
+          fi
+          if printf '%s\n' "$LOOKUP_OUTPUT" | grep -q 'E404'; then
+            echo "${PACKAGE_NAME}@${VERSION} is available."
+            exit 0
+          fi
+
+          printf '%s\n' "$LOOKUP_OUTPUT"
+          exit "$LOOKUP_STATUS"
+
+  publish:
+    if: >-
+      github.server_url == 'https://github.com' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-sdk-staging
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout staging
         uses: actions/checkout@v4
         with:
           ref: staging
@@ -28,45 +111,64 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.18.0'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
 
       - name: Install dependencies
         working-directory: sdk
-        run: npm install
+        run: npm ci
 
-      - name: Bump patch version
-        id: bump
+      - name: Verify package metadata
         working-directory: sdk
         run: |
-          npm version patch --no-git-tag-version
-          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          node <<'NODE'
+          const fs = require('node:fs')
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'))
+          const root = lock.packages?.['']
+
+          if (pkg.name !== '@alfnajmi__/gantt-chart') {
+            throw new Error(`Unexpected package name: ${pkg.name}`)
+          }
+          if (lock.name !== pkg.name || root?.name !== pkg.name) {
+            throw new Error('package-lock.json package name does not match package.json')
+          }
+          if (lock.version !== pkg.version || root?.version !== pkg.version) {
+            throw new Error('package-lock.json version does not match package.json')
+          }
+          NODE
+
+      - name: Verify package version is unpublished
+        working-directory: sdk
+        shell: bash
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+
+          set +e
+          LOOKUP_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry=https://registry.npmjs.org 2>&1)
+          LOOKUP_STATUS=$?
+          set -e
+
+          if [ "$LOOKUP_STATUS" -eq 0 ]; then
+            echo "::error::${PACKAGE_NAME}@${VERSION} is already published."
+            exit 1
+          fi
+          if printf '%s\n' "$LOOKUP_OUTPUT" | grep -q 'E404'; then
+            echo "${PACKAGE_NAME}@${VERSION} is available."
+          else
+            printf '%s\n' "$LOOKUP_OUTPUT"
+            exit "$LOOKUP_STATUS"
+          fi
 
       - name: Build SDK
         working-directory: sdk
         run: npm run build
 
-      - name: Publish to registry
+      - name: Publish public package
         working-directory: sdk
+        run: npm publish --access public
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//devgithub.mcmc.gov.my/_registry/npm/:_authToken=${NPM_TOKEN}" >> .npmrc
-          npm publish
-
-      - name: Open version bump PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.bump.outputs.version }}"
-          BRANCH="chore/sdk-v${VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.devgithub.mcmc.gov.my"
-          git checkout -b "$BRANCH"
-          git add sdk/package.json sdk/package-lock.json
-          git commit -m "chore(sdk): publish @mcmc/gantt-chart v${VERSION}"
-          git push "https://x-access-token:${GH_TOKEN}@devgithub.mcmc.gov.my/mcmc/gantt-app.git" "$BRANCH"
-          curl -sf -X POST \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://devgithub.mcmc.gov.my/api/v3/repos/mcmc/gantt-app/pulls" \
-            -d "{\"title\":\"chore(sdk): publish @mcmc/gantt-chart v${VERSION}\",\"head\":\"${BRANCH}\",\"base\":\"staging\",\"body\":\"Automated version bump after publishing @mcmc/gantt-chart@${VERSION} to the registry.\"}"
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
