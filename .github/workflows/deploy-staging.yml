@@ -141,8 +141,22 @@ jobs:
           # ephemeral remote URL and never written to disk.
           CLOUD_REMOTE="https://x-access-token:${CLOUD_GITHUB_TOKEN}@github.com/${CLOUD_GITHUB_REPO}.git"
 
-          # Push the exact merge commit that was just deployed to the cloud
-          # staging branch. Fast-forward only: never rewrite cloud history.
-          git push "${CLOUD_REMOTE}" "HEAD:refs/heads/staging"
+          # Enterprise staging is the source of truth for cloud staging. The two
+          # histories have diverged (parallel merges of the same work), so a
+          # plain fast-forward push is rejected. We fetch the current cloud tip
+          # and force-with-lease: this overwrites cloud staging to match what we
+          # just deployed, but only if cloud staging is still at the commit we
+          # fetched — so genuine new work pushed to cloud in the meantime aborts
+          # the push instead of being silently discarded.
+          if git fetch "${CLOUD_REMOTE}" "refs/heads/staging:refs/remotes/cloud/staging" 2>/dev/null; then
+            CLOUD_TIP=$(git rev-parse refs/remotes/cloud/staging)
+            echo "Cloud staging is currently at ${CLOUD_TIP}."
+            git push --force-with-lease="refs/heads/staging:${CLOUD_TIP}" \
+              "${CLOUD_REMOTE}" "HEAD:refs/heads/staging"
+          else
+            # Cloud staging does not exist yet — create it with a plain push.
+            echo "Cloud staging not found; creating it."
+            git push "${CLOUD_REMOTE}" "HEAD:refs/heads/staging"
+          fi
 
           echo "Mirrored $(git rev-parse --short HEAD) to github.com/${CLOUD_GITHUB_REPO} (staging). Cloud publish workflow will run."
