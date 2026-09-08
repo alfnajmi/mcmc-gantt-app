@@ -163,10 +163,14 @@ function initGanttWithProject(projectId) {
     onTaskChange: (task) => emit('task-change', task),
     onScaleChange: (level) => { currentScale.value = level },
   })
-  const interval = setInterval(() => {
-    if (window.gantt && window.gantt.config) { clearInterval(interval); onGanttReady() }
-  }, 200)
-  setTimeout(() => clearInterval(interval), 10000)
+  // Wait for the controller's explicit ready signal (init + first data load)
+  // rather than polling window.gantt. On SPA navigation the global already
+  // exists from a prior mount, so polling can fire onGanttReady() before this
+  // instance's datastore is set up and crash DHTMLX (tasksStore undefined).
+  const readyController = controller
+  controller.ready.then(() => {
+    if (controller === readyController) onGanttReady()
+  })
 }
 
 watch(closedVisible, () => applyFilters())
@@ -338,14 +342,12 @@ function initGantt() {
     onScaleChange: (level) => { currentScale.value = level },
   })
 
-  // Wait for gantt to be ready then apply overrides
-  const interval = setInterval(() => {
-    if (window.gantt && window.gantt.config) {
-      clearInterval(interval)
-      onGanttReady()
-    }
-  }, 200)
-  setTimeout(() => clearInterval(interval), 10000)
+  // Wait for the controller's ready signal (init + first data load) before
+  // applying overrides, rather than polling the shared window.gantt global.
+  const readyController = controller
+  controller.ready.then(() => {
+    if (controller === readyController) onGanttReady()
+  })
 }
 
 function onGanttReady() {

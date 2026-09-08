@@ -912,6 +912,13 @@ export function mountGantt(options) {
   // Dynamically load DHTMLX Gantt if not already loaded
   const ganttReady = ensureGanttLoaded()
 
+  // Resolves once this instance has finished gantt.init() and the first data
+  // load. Consumers must wait on this before rendering/reading the datastore.
+  // On SPA navigation window.gantt already exists, so polling the global is
+  // not a safe readiness signal — this promise is.
+  let resolveReady
+  const readyPromise = new Promise((resolve) => { resolveReady = resolve })
+
   let destroyed = false
   let dpInstance = null
   let sidebar = null
@@ -1610,6 +1617,9 @@ export function mountGantt(options) {
       renderTodayLine()
       // Ensure Add Task is attached after data/header rendering settles.
       if (editable) scheduleAddTaskButton()
+      // Signal that init + first data load are complete so consumers can
+      // safely render/read the datastore without racing DHTMLX setup.
+      if (resolveReady) { resolveReady(); resolveReady = null }
     })
 
     // Add Task button in grid header. DHTMLX owns and may replace the header
@@ -1738,6 +1748,8 @@ export function mountGantt(options) {
 
   // Return controller
   return {
+    // Resolves after init + first data load; await before rendering.
+    ready: readyPromise,
     setGridVisible(visible) {
       gridVisible = visible !== false
       if (window.gantt && window.gantt.config) {
@@ -1821,7 +1833,22 @@ function injectCustomCSS() {
  */
 let loadPromise = null
 function ensureGanttLoaded() {
-  if (window.gantt) return Promise.resolve()
+  // When DHTMLX is already loaded (e.g. client-side SPA navigation back to the
+  // Gantt page), resolving synchronously runs init on the next microtask —
+  // before the browser has laid out the freshly mounted container. DHTMLX then
+  // initializes against a zero-size element and renders an empty frame until a
+  // manual refresh. Wait one animation frame so the container has real
+  // dimensions before init, matching the timing a fresh CDN load happens to
+  // provide.
+  if (window.gantt) {
+    return new Promise((resolve) => {
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => resolve())
+      } else {
+        resolve()
+      }
+    })
+  }
   if (loadPromise) return loadPromise
 
   loadPromise = new Promise((resolve, reject) => {
