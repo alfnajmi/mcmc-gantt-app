@@ -10,6 +10,16 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    # Bound the on-disk log so the cache HIT/MISS/BYPASS lines survive long
+    # enough to compute a real hit rate (days, not a docker-logs snapshot).
+    # Harmless if a log aggregator is also collecting stdout — it reads the
+    # stream; this only caps the local copy. At LOG_LEVEL=INFO the volume is
+    # modest (access + cache lines), so 50MB x 5 retains many days.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"]
       interval: 30s
