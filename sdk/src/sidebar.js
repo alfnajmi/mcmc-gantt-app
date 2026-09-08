@@ -487,7 +487,7 @@ function descriptionToText(value) {
  * @returns {Object} sidebar controller { open(task), close(), destroy() }
  */
 export function createEditSidebar(opts) {
-  const { container, apiBase, project, planeUrl, workspaceSlug, projectId } = opts
+  const { container, apiBase, project, planeUrl, workspaceSlug, projectId, getGantt } = opts
   let el = null
   let overlay = null
   let width = 360
@@ -784,9 +784,10 @@ export function createEditSidebar(opts) {
   }
 
   function reloadGantt() {
-    if (!window.gantt) return
-    window.gantt.clearAll()
-    window.gantt.load(`${apiBase}/api/projects/${project}/data?bypass_cache=true`)
+    const gantt = typeof getGantt === 'function' ? getGantt() : window.gantt
+    if (!gantt) return
+    gantt.clearAll()
+    gantt.load(`${apiBase}/api/projects/${project}/data?bypass_cache=true`)
   }
 
   function showTrashToast(record) {

@@ -1,6 +1,6 @@
 {
   "name": "@alfnajmi/gantt-chart",
-  "version": "1.4.10",
+  "version": "1.4.11",
   "description": "Embeddable Gantt chart component — Web Component + Vue 3 wrapper",
   "type": "module",
   "main": "dist/gantt-chart.js",
