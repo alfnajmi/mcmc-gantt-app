@@ -1,5 +1,5 @@
 {
-  "name": "@alfnajmi__/gantt-chart",
+  "name": "@alfnajmi/gantt-chart",
   "version": "1.4.9",
   "description": "Embeddable Gantt chart component — Web Component + Vue 3 wrapper",
   "type": "module",
@@ -27,11 +27,11 @@
   },
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org/"
+    "registry": "https://npm.pkg.github.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/alfnajmi/mcmc-gantt-app.git",
+    "url": "git+https://github.com/alfnajmi/mcmc-gantt-app.git",
     "directory": "sdk"
   },
   "dependencies": {

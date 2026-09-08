@@ -429,6 +429,17 @@ const GANTT_CUSTOM_CSS = `
     ) !important;
     background-size: 6px 6px !important;
   }
+  /* The weekend cell paints its own opaque background over the row, so a
+     plain row-hover color would sit behind the hatch. Swap the cell's base
+     color to the hover/selected tint on interaction and keep the (semi-
+     transparent) hatch on top, so the highlight reads through the sketch. */
+  .gantt_task_row:hover .weekend-cell,
+  .gantt_task_row.hover .weekend-cell {
+    background-color: #f1f5f9 !important;
+  }
+  .gantt_task_row.gantt_selected .weekend-cell {
+    background-color: #eff6ff !important;
+  }
 
   /* Today cells remain available as semantic hooks; the visible indicator is
      one continuous overlay positioned at the current time. */

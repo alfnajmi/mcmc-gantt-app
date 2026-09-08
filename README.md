@@ -1,6 +1,6 @@
 # Plane-powered Gantt API and SDK
 
-Plane-backed Gantt integration for PERSADA and other MCMC portals. The FastAPI service translates Plane data into dhtmlxGantt-compatible JSON; the `@alfnajmi__/gantt-chart` SDK renders and manages that data directly inside a host application.
+Plane-backed Gantt integration for PERSADA and other MCMC portals. The FastAPI service translates Plane data into dhtmlxGantt-compatible JSON; the `@alfnajmi/gantt-chart` SDK renders and manages that data directly inside a host application.
 
 Plane is the source of truth for projects, modules, work items, dates, hierarchy, and status. This service has no application database. Redis is optional for response caching and required for durable recoverable-trash records.
 
@@ -12,7 +12,7 @@ Plane is the source of truth for projects, modules, work items, dates, hierarchy
 
 ```text
 persada-web or another portal
-        │ @alfnajmi__/gantt-chart
+        │ @alfnajmi/gantt-chart
         ▼
 Gantt API (FastAPI, port 8200)
         ├── data transformation / writes ──► Plane
@@ -132,7 +132,7 @@ npm ci
 npm run build
 ```
 
-The SDK publishes publicly to npmjs as `@alfnajmi__/gantt-chart`. Versioning and consumer examples are documented in [`sdk/README.md`](sdk/README.md).
+The SDK publishes to GitHub Packages as `@alfnajmi/gantt-chart`. Versioning and consumer examples (including the `.npmrc` needed to install) are documented in [`sdk/README.md`](sdk/README.md).
 
 ## Verification
 
