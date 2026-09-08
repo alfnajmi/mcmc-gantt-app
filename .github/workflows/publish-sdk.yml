@@ -17,6 +17,12 @@ on:
       - 'sdk/package-lock.json'
   workflow_dispatch: {}
 
+env:
+  # GitHub Packages npm registry. The package scope (@alfnajmi) must match the
+  # repository owner or Packages will reject the publish.
+  GHP_REGISTRY: https://npm.pkg.github.com
+  EXPECTED_PACKAGE: '@alfnajmi/gantt-chart'
+
 permissions:
   contents: read
 
@@ -35,20 +41,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.18.0'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@alfnajmi'
           cache: npm
           cache-dependency-path: sdk/package-lock.json
 
       - name: Verify package metadata
         working-directory: sdk
+        env:
+          EXPECTED_PACKAGE: ${{ env.EXPECTED_PACKAGE }}
         run: |
           node <<'NODE'
           const fs = require('node:fs')
+          const expected = process.env.EXPECTED_PACKAGE
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
           const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'))
           const root = lock.packages?.['']
 
-          if (pkg.name !== '@alfnajmi__/gantt-chart') {
+          if (pkg.name !== expected) {
             throw new Error(`Unexpected package name: ${pkg.name}`)
           }
           if (lock.name !== pkg.name || root?.name !== pkg.name) {
@@ -62,12 +72,14 @@ jobs:
       - name: Verify package version is unpublished
         working-directory: sdk
         shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PACKAGE_NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
 
           set +e
-          LOOKUP_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry=https://registry.npmjs.org 2>&1)
+          LOOKUP_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry="${GHP_REGISTRY}" 2>&1)
           LOOKUP_STATUS=$?
           set -e
 
@@ -89,6 +101,10 @@ jobs:
       (github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging'))
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required to publish to GitHub Packages with the built-in GITHUB_TOKEN.
+      packages: write
     concurrency:
       group: publish-sdk-staging
       cancel-in-progress: false
@@ -103,26 +119,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.18.0'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@alfnajmi'
           cache: npm
           cache-dependency-path: sdk/package-lock.json
-
-      - name: Verify npm publishing identity
-        working-directory: sdk
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          NPM_USER=$(npm whoami --registry=https://registry.npmjs.org)
-          ACCESS_JSON=$(npm access list collaborators "$PACKAGE_NAME" "$NPM_USER" --json --registry=https://registry.npmjs.org)
-          ACCESS=$(printf '%s' "$ACCESS_JSON" | NPM_USER="$NPM_USER" node -e "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => { const permissions = JSON.parse(input); process.stdout.write(permissions[process.env.NPM_USER] || 'none'); });")
-
-          echo "Authenticated to npm as ${NPM_USER}."
-          if [ "$ACCESS" != "read-write" ]; then
-            echo "::error::npm user ${NPM_USER} does not have read-write access to ${PACKAGE_NAME}."
-            exit 1
-          fi
 
       - name: Install dependencies
         working-directory: sdk
@@ -130,14 +130,17 @@ jobs:
 
       - name: Verify package metadata
         working-directory: sdk
+        env:
+          EXPECTED_PACKAGE: ${{ env.EXPECTED_PACKAGE }}
         run: |
           node <<'NODE'
           const fs = require('node:fs')
+          const expected = process.env.EXPECTED_PACKAGE
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
           const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'))
           const root = lock.packages?.['']
 
-          if (pkg.name !== '@alfnajmi__/gantt-chart') {
+          if (pkg.name !== expected) {
             throw new Error(`Unexpected package name: ${pkg.name}`)
           }
           if (lock.name !== pkg.name || root?.name !== pkg.name) {
@@ -151,12 +154,14 @@ jobs:
       - name: Verify package version is unpublished
         working-directory: sdk
         shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PACKAGE_NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
 
           set +e
-          LOOKUP_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry=https://registry.npmjs.org 2>&1)
+          LOOKUP_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry="${GHP_REGISTRY}" 2>&1)
           LOOKUP_STATUS=$?
           set -e
 
@@ -175,8 +180,8 @@ jobs:
         working-directory: sdk
         run: npm run build
 
-      - name: Publish public package
+      - name: Publish to GitHub Packages
         working-directory: sdk
-        run: npm publish --access public
+        run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -28,6 +28,10 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Full history is required so the mirror push at the end can fast-
+          # forward the cloud remote's staging branch.
+          fetch-depth: 0
 
       - name: Build Docker image
         run: |
@@ -115,3 +119,30 @@ jobs:
       - name: Cleanup local image tar
         if: always()
         run: rm -f gantt-app-staging.tar
+
+      # Only after the backend has deployed and passed its health checks do we
+      # mirror the merged staging branch to cloud github.com. That push is what
+      # triggers the SDK publish workflow (publish-sdk.yml) on the cloud host,
+      # giving the ordering: deploy backend -> then publish npm package.
+      - name: Mirror staging to cloud github.com
+        env:
+          CLOUD_GITHUB_TOKEN: ${{ secrets.CLOUD_GITHUB_TOKEN }}
+          CLOUD_GITHUB_REPO: ${{ vars.CLOUD_GITHUB_REPO }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CLOUD_GITHUB_TOKEN}" ] || [ -z "${CLOUD_GITHUB_REPO}" ]; then
+            echo "::error::CLOUD_GITHUB_TOKEN secret and CLOUD_GITHUB_REPO variable must be set to mirror to cloud github.com."
+            exit 1
+          fi
+
+          # CLOUD_GITHUB_REPO is the "owner/repo" slug on github.com, e.g.
+          # "alfnajmi/mcmc-gantt-app". The token is embedded only in this
+          # ephemeral remote URL and never written to disk.
+          CLOUD_REMOTE="https://x-access-token:${CLOUD_GITHUB_TOKEN}@github.com/${CLOUD_GITHUB_REPO}.git"
+
+          # Push the exact merge commit that was just deployed to the cloud
+          # staging branch. Fast-forward only: never rewrite cloud history.
+          git push "${CLOUD_REMOTE}" "HEAD:refs/heads/staging"
+
+          echo "Mirrored $(git rev-parse --short HEAD) to github.com/${CLOUD_GITHUB_REPO} (staging). Cloud publish workflow will run."

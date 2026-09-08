@@ -588,13 +588,15 @@ function handleExport() {
       <!-- Gantt chart -->
       <div ref="containerRef" class="gv-chart"></div>
 
-      <!-- Empty state — prompt the user to pick a project when none is active -->
-      <div v-if="showProjectSelector && !selectedProject && !projectLoading" class="gv-empty">
+      <!-- Empty state — shown whenever no project is selected. On a normal
+           load a project auto-selects, so this appears only when auto-select
+           can't resolve one (still loading, fetch error, or no projects). -->
+      <div v-if="showProjectSelector && !selectedProject" class="gv-empty">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
-        <p class="gv-empty-title">No project selected</p>
-        <p class="gv-empty-sub">Choose a project to load its Gantt chart.</p>
+        <p class="gv-empty-title">Please select a project</p>
+        <p class="gv-empty-sub">Use the “Select project” menu above to load its Gantt chart.</p>
       </div>
 
       <!-- Fields panel -->

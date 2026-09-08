@@ -1,8 +1,8 @@
-# @alfnajmi__/gantt-chart SDK
+# @alfnajmi/gantt-chart SDK
 
 Embeddable Gantt chart component for any web application. No iframe needed — renders directly in your page's DOM.
 
-Published publicly on npm as [`@alfnajmi__/gantt-chart`](https://www.npmjs.com/package/@alfnajmi__/gantt-chart).
+Published to GitHub Packages as [`@alfnajmi/gantt-chart`](https://github.com/alfnajmi/mcmc-gantt-app/packages). Installing requires a GitHub token with `read:packages`; see the install section below.
 
 > Documentation last reviewed: 7 September 2026
 >
@@ -50,7 +50,7 @@ You don't need to set up a backend or manage environment variables. The Gantt AP
 
 ```vue
 <script setup>
-import GanttView from '@alfnajmi__/gantt-chart/view'
+import GanttView from '@alfnajmi/gantt-chart/view'
 </script>
 
 <template>
@@ -78,10 +78,19 @@ That's it. No `.env` files, no backend setup, no database. The component handles
 
 ## Installation
 
-Install the public package directly from npm. No custom registry or `.npmrc` configuration is required:
+The package is hosted on GitHub Packages, so consumers must route the `@alfnajmi`
+scope to the GitHub npm registry and authenticate with a token that has
+`read:packages`. Add an `.npmrc` to the consuming project:
+
+```ini
+@alfnajmi:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${CLOUD_NPM_TOKEN}
+```
+
+Then install:
 
 ```bash
-npm install @alfnajmi__/gantt-chart
+npm install @alfnajmi/gantt-chart
 ```
 
 ## Three ways to use
@@ -90,7 +99,7 @@ npm install @alfnajmi__/gantt-chart
 
 ```vue
 <script setup>
-import GanttView from '@alfnajmi__/gantt-chart/view'
+import GanttView from '@alfnajmi/gantt-chart/view'
 </script>
 
 <template>
@@ -136,8 +145,8 @@ Fields and Trash remain mutually exclusive:
 
 ```vue
 <script setup>
-import GanttFieldsPanel from '@alfnajmi__/gantt-chart/fields-panel'
-import { useGanttSidebars } from '@alfnajmi__/gantt-chart/sidebars'
+import GanttFieldsPanel from '@alfnajmi/gantt-chart/fields-panel'
+import { useGanttSidebars } from '@alfnajmi/gantt-chart/sidebars'
 
 const {
   fieldsOpen,
@@ -176,7 +185,7 @@ controller internally, making the SDK the source of truth for sidebar behavior.
 
 ```vue
 <script setup>
-import GanttChart from '@alfnajmi__/gantt-chart/vue'
+import GanttChart from '@alfnajmi/gantt-chart/vue'
 </script>
 
 <template>
@@ -201,7 +210,7 @@ import GanttChart from '@alfnajmi__/gantt-chart/vue'
 ### 3. Imperative JS API
 
 ```js
-import { mountGantt } from '@alfnajmi__/gantt-chart'
+import { mountGantt } from '@alfnajmi/gantt-chart'
 
 const gantt = mountGantt({
   container: document.getElementById('my-gantt'),
@@ -292,10 +301,10 @@ For a manual release from an authenticated environment:
 cd sdk
 npm ci
 npm run build
-NODE_AUTH_TOKEN=<npm-token> npm publish --access public
+NODE_AUTH_TOKEN=<github-token> npm publish
 ```
 
-Use an npm automation token with publish access to the `@alfnajmi__` scope; never commit the token.
+Use a GitHub token with `write:packages` on the `alfnajmi/mcmc-gantt-app` repo (in CI the built-in `GITHUB_TOKEN` with `packages: write` suffices); never commit the token. The registry and scope are set via the package's `publishConfig`.
 
 ## How it works
 
