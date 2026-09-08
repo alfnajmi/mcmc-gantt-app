@@ -1854,24 +1854,12 @@ function injectCustomCSS() {
  */
 let loadPromise = null
 function ensureGanttLoaded() {
-  // When the DHTMLX library is already loaded (e.g. client-side SPA navigation
-  // back to the Gantt page), resolving synchronously runs init on the next
-  // microtask — before the browser has laid out the freshly mounted container.
-  // DHTMLX then initializes against a zero-size element and renders an empty
-  // frame until a manual refresh. Wait one animation frame so the container
-  // has real dimensions before init, matching the timing a fresh CDN load
-  // happens to provide. We check for the library (window.Gantt factory or the
-  // window.gantt singleton), NOT as an instance to reuse — each mount creates
-  // its own instance via getGanttInstance().
-  if (window.Gantt || window.gantt) {
-    return new Promise((resolve) => {
-      if (typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(() => resolve())
-      } else {
-        resolve()
-      }
-    })
-  }
+  // If the DHTMLX library is already loaded (e.g. SPA navigation back to the
+  // Gantt page), it's ready immediately. Each mount creates its own instance
+  // via getGanttInstance(), so there's no shared/destructed global to work
+  // around here. We check for library presence (the window.Gantt factory or
+  // the window.gantt singleton), not an instance to reuse.
+  if (window.Gantt || window.gantt) return Promise.resolve()
   if (loadPromise) return loadPromise
 
   loadPromise = new Promise((resolve, reject) => {
