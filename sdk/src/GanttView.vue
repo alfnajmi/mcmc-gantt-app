@@ -350,18 +350,28 @@ function initGantt() {
   })
 }
 
+// Live DHTMLX instance for the current mount. Each mount owns its own instance
+// (see core.js), so we read it from the controller rather than the shared
+// window.gantt global, which may be undefined or a destructed prior instance.
+function ganttInstance() {
+  return controller && controller.getInstance ? controller.getInstance() : null
+}
+
 function onGanttReady() {
   rebuildColumns()
   extractFilterOptions()
   applyFilters()
 
-  window.gantt.attachEvent('onGanttRender', () => {
-    setTimeout(extractFilterOptions, 100)
-  })
+  const gantt = ganttInstance()
+  if (gantt) {
+    gantt.attachEvent('onGanttRender', () => {
+      setTimeout(extractFilterOptions, 100)
+    })
+  }
 }
 
 function rebuildColumns() {
-  const gantt = window.gantt
+  const gantt = ganttInstance()
   if (!gantt) return
   const cols = [{ name: 'text', label: 'Name', tree: true, width: 200, resize: true }]
   if (shownFields.start_date) cols.push({ name: 'start_date', label: 'Start', align: 'center', width: 90, resize: true, template: t => fmtCol(t.start_date) })
@@ -376,8 +386,9 @@ function rebuildColumns() {
 }
 
 function applyFilters() {
-  if (!window.gantt) return
-  window.gantt.attachEvent('onBeforeTaskDisplay', (id, task) => {
+  const gantt = ganttInstance()
+  if (!gantt) return
+  gantt.attachEvent('onBeforeTaskDisplay', (id, task) => {
     if (!closedVisible.value && task.status === 'complete') return false
     if (activeFilters.status.length && task.plane_type !== 'module' && !activeFilters.status.includes(task.status)) return false
     if (activeFilters.assignee.length && task.plane_type !== 'module') {
@@ -389,7 +400,7 @@ function applyFilters() {
         const n = (task.text || '').replace(/^[\u{1F4E6}\u{1F504}]\s*/u, '')
         if (!activeFilters.module.includes(n)) return false
       } else if (task.parent) {
-        const p = window.gantt.isTaskExists(task.parent) ? window.gantt.getTask(task.parent) : null
+        const p = gantt.isTaskExists(task.parent) ? gantt.getTask(task.parent) : null
         if (p && p.plane_type === 'module') {
           const n = (p.text || '').replace(/^[\u{1F4E6}\u{1F504}]\s*/u, '')
           if (!activeFilters.module.includes(n)) return false
@@ -398,13 +409,14 @@ function applyFilters() {
     }
     return true
   })
-  window.gantt.render()
+  gantt.render()
 }
 
 function extractFilterOptions() {
-  if (!window.gantt) return
+  const gantt = ganttInstance()
+  if (!gantt) return
   const aSet = new Set(), mSet = new Set()
-  window.gantt.eachTask(t => {
+  gantt.eachTask(t => {
     if (t.assignee) t.assignee.split(',').forEach(a => { const v = a.trim(); if (v) aSet.add(v) })
     if (t.plane_type === 'module') { const n = (t.text || '').replace(/^[\u{1F4E6}\u{1F504}]\s*/u, ''); if (n) mSet.add(n) }
   })
@@ -427,9 +439,10 @@ function activeProjectId() {
 
 function reloadChart() {
   const projectId = activeProjectId()
-  if (!window.gantt || !projectId) return
-  window.gantt.clearAll()
-  window.gantt.load(`${props.apiBase}/api/projects/${projectId}/data?bypass_cache=true`)
+  const gantt = ganttInstance()
+  if (!gantt || !projectId) return
+  gantt.clearAll()
+  gantt.load(`${props.apiBase}/api/projects/${projectId}/data?bypass_cache=true`)
 }
 
 async function openTrash() {
@@ -472,12 +485,13 @@ function daysUntilPurge(item) {
 }
 
 // Toolbar actions
-function handleToday() { if (window.gantt) window.gantt.showDate(new Date()) }
-function handleAutoFit() { if (window.gantt) { window.gantt.config.fit_tasks = true; window.gantt.render() } }
+function handleToday() { const gantt = ganttInstance(); if (gantt) gantt.showDate(new Date()) }
+function handleAutoFit() { const gantt = ganttInstance(); if (gantt) { gantt.config.fit_tasks = true; gantt.render() } }
 function handleExport() {
-  if (!window.gantt) return
+  const gantt = ganttInstance()
+  if (!gantt) return
   const tasks = []
-  window.gantt.eachTask(function(task) {
+  gantt.eachTask(function(task) {
     if (task.plane_type === 'module' || task.plane_type === 'cycle') return
     const start = task.start_date instanceof Date ? task.start_date.toISOString().split('T')[0] : ''
     const end = task.end_date instanceof Date ? task.end_date.toISOString().split('T')[0] : ''

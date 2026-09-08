@@ -919,6 +919,12 @@ export function mountGantt(options) {
   let resolveReady
   const readyPromise = new Promise((resolve) => { resolveReady = resolve })
 
+  // Each mount owns its own DHTMLX instance. Sharing the global window.gantt
+  // and calling destructor() on it corrupts the next mount's datastores on SPA
+  // navigation (tasksStore undefined). getGanttInstance() gives an isolated
+  // instance with its own stores/config/templates.
+  let ganttInstance = null
+
   let destroyed = false
   let dpInstance = null
   let sidebar = null
@@ -949,9 +955,9 @@ export function mountGantt(options) {
   function setScaleLevel(level, notify = false) {
     if (!SCALES[level]) return false
     currentScale = level
-    if (window.gantt && window.gantt.config) {
-      window.gantt.config.scales = SCALES[level]
-      window.gantt.render()
+    if (ganttInstance && ganttInstance.config) {
+      ganttInstance.config.scales = SCALES[level]
+      ganttInstance.render()
     }
     updateZoomButtons()
     if (notify && onScaleChange) onScaleChange(level)
@@ -967,7 +973,12 @@ export function mountGantt(options) {
   ganttReady.then(() => {
     if (destroyed) return
 
-    const gantt = window.gantt
+    // Create a fresh, isolated instance for this mount. Fall back to the
+    // singleton only if the factory is unavailable in the loaded build.
+    const gantt = (window.Gantt && typeof window.Gantt.getGanttInstance === 'function')
+      ? window.Gantt.getGanttInstance()
+      : window.gantt
+    ganttInstance = gantt
 
     // Inject custom CSS
     injectCustomCSS()
@@ -1262,6 +1273,9 @@ export function mountGantt(options) {
         planeUrl,
         workspaceSlug,
         projectId,
+        // Give the sidebar a live handle to this mount's instance so it never
+        // touches the shared global when reloading data.
+        getGantt: () => ganttInstance,
       })
 
       // Override lightbox to open our sidebar instead
@@ -1581,7 +1595,7 @@ export function mountGantt(options) {
 
         containerResizeFrame = window.requestAnimationFrame(() => {
           containerResizeFrame = null
-          if (destroyed || window.gantt !== gantt) return
+          if (destroyed || ganttInstance !== gantt) return
           const scroll = gantt.getScrollState ? gantt.getScrollState() : null
           if (typeof gantt.setSizes === 'function') gantt.setSizes()
           else gantt.render()
@@ -1626,7 +1640,7 @@ export function mountGantt(options) {
     // cell during renders, so retain one button and reattach it to the current
     // live cell instead of creating a new node or trusting a stale subtree.
     function ensureAddTaskButton() {
-      if (destroyed || !editable || window.gantt !== gantt) return
+      if (destroyed || !editable || ganttInstance !== gantt) return
       const nameCell = container.querySelector('.gantt_grid_head_cell')
       if (!nameCell) return
 
@@ -1750,17 +1764,20 @@ export function mountGantt(options) {
   return {
     // Resolves after init + first data load; await before rendering.
     ready: readyPromise,
+    // The live per-mount DHTMLX instance (null until ganttReady resolves).
+    // Consumers must use this instead of the shared window.gantt global.
+    getInstance() { return ganttInstance },
     setGridVisible(visible) {
       gridVisible = visible !== false
-      if (window.gantt && window.gantt.config) {
-        const gantt = window.gantt
+      if (ganttInstance && ganttInstance.config) {
+        const gantt = ganttInstance
         const scroll = gantt.getScrollState ? gantt.getScrollState() : null
         gantt.config.show_grid = gridVisible
         gantt.render()
 
         if (scroll && gantt.scrollTo) {
           const restoreScroll = () => {
-            if (!destroyed && window.gantt === gantt) {
+            if (!destroyed && ganttInstance === gantt) {
               gantt.scrollTo(scroll.x, scroll.y)
             }
           }
@@ -1811,7 +1828,11 @@ export function mountGantt(options) {
         window.cancelAnimationFrame(containerResizeFrame)
         containerResizeFrame = null
       }
-      if (window.gantt) window.gantt.destructor()
+      // Destroy only this mount's own instance, never the shared global.
+      if (ganttInstance) {
+        ganttInstance.destructor()
+        ganttInstance = null
+      }
     },
   }
 }
@@ -1833,22 +1854,12 @@ function injectCustomCSS() {
  */
 let loadPromise = null
 function ensureGanttLoaded() {
-  // When DHTMLX is already loaded (e.g. client-side SPA navigation back to the
-  // Gantt page), resolving synchronously runs init on the next microtask —
-  // before the browser has laid out the freshly mounted container. DHTMLX then
-  // initializes against a zero-size element and renders an empty frame until a
-  // manual refresh. Wait one animation frame so the container has real
-  // dimensions before init, matching the timing a fresh CDN load happens to
-  // provide.
-  if (window.gantt) {
-    return new Promise((resolve) => {
-      if (typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(() => resolve())
-      } else {
-        resolve()
-      }
-    })
-  }
+  // If the DHTMLX library is already loaded (e.g. SPA navigation back to the
+  // Gantt page), it's ready immediately. Each mount creates its own instance
+  // via getGanttInstance(), so there's no shared/destructed global to work
+  // around here. We check for library presence (the window.Gantt factory or
+  // the window.gantt singleton), not an instance to reuse.
+  if (window.Gantt || window.gantt) return Promise.resolve()
   if (loadPromise) return loadPromise
 
   loadPromise = new Promise((resolve, reject) => {
