@@ -11,6 +11,7 @@ Caching: Responses are cached in Redis (if configured) to reduce Plane API load.
 Cache auto-expires via TTL and is invalidated on write operations.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from html import escape
@@ -271,7 +272,11 @@ async def get_project_data(
         if not bypass_cache:
             cached = await cache.get("project_data", resolved_id, cache_variant)
             if cached is not None:
+                logger.info("project_data cache HIT project=%s", resolved_id)
                 return cached
+            logger.info("project_data cache MISS project=%s", resolved_id)
+        else:
+            logger.info("project_data cache BYPASS project=%s", resolved_id)
 
         # Fetch labels as expanded objects so milestone type is explicit rather
         # than inferred from equal start and target dates.
@@ -301,32 +306,54 @@ async def get_project_data(
             except PlaneAPIError:
                 logger.warning("Failed to fetch modules for project %s", resolved_id)
 
-        # Build module-issue mapping (which issues belong to which module)
+        # Build module-issue mapping (which issues belong to which module).
+        # Each module needs its own Plane call; fetch them concurrently instead
+        # of serially so N modules cost ~1 round-trip of latency, not N.
         module_issue_map = {}
         if modules:
-            for module in modules:
+            async def _fetch_module_issues(module):
                 try:
-                    mod_issues = await svc.list_module_issues(resolved_id, module["id"])
-                    for mi in mod_issues:
-                        # module-issues endpoint returns objects with issue/issue_detail
-                        issue_id = mi.get("issue") or mi.get("id") or mi.get("issue_detail", {}).get("id")
-                        if issue_id:
-                            module_issue_map[issue_id] = module["id"]
+                    return module["id"], await svc.list_module_issues(resolved_id, module["id"])
                 except PlaneAPIError:
-                    pass
+                    return module["id"], []
+
+            module_results = await asyncio.gather(
+                *(_fetch_module_issues(module) for module in modules)
+            )
+            for module_id, mod_issues in module_results:
+                for mi in mod_issues:
+                    # module-issues endpoint returns objects with issue/issue_detail
+                    issue_id = mi.get("issue") or mi.get("id") or mi.get("issue_detail", {}).get("id")
+                    if issue_id:
+                        module_issue_map[issue_id] = module_id
 
         # Optionally fetch relations for dependency arrows
         relations = None
         if include_relations and issues:
+            # Relations are one Plane call per issue — the dominant cost when
+            # fetched serially. Run them concurrently with a bounded semaphore
+            # so we cut the latency to roughly ceil(N / limit) round-trips
+            # without opening an unbounded number of connections to Plane.
             relations = {}
-            for issue in issues:
-                issue_id = issue["id"]
-                try:
-                    rels = await svc.get_issue_relations(resolved_id, issue_id)
+            _REL_CONCURRENCY = 10
+            _rel_semaphore = asyncio.Semaphore(_REL_CONCURRENCY)
+
+            async def _fetch_relations(issue_id):
+                async with _rel_semaphore:
+                    try:
+                        rels = await svc.get_issue_relations(resolved_id, issue_id)
+                    except PlaneAPIError:
+                        return issue_id, None
                     if any(rels.get(k) for k in ("blocking", "blocked_by", "start_before", "start_after", "finish_before", "finish_after")):
-                        relations[issue_id] = rels
-                except PlaneAPIError:
-                    pass
+                        return issue_id, rels
+                    return issue_id, None
+
+            rel_results = await asyncio.gather(
+                *(_fetch_relations(issue["id"]) for issue in issues)
+            )
+            for issue_id, rels in rel_results:
+                if rels is not None:
+                    relations[issue_id] = rels
 
         # Transform to dhtmlxGantt format
         result = transform_issues_to_gantt(
