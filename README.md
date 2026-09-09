@@ -95,12 +95,28 @@ All project parameters accept a Plane UUID or project identifier where resolutio
 | `GET` | `/api/projects` | List Plane projects. |
 | `GET` | `/api/projects/{project}` | Get project metadata. |
 | `GET` | `/api/projects/{project}/data` | Return Gantt tasks and dependency links. |
+| `GET` | `/api/overview/data?project_ids=...` | Return a read-only management timeline across selected projects. |
 | `PUT` | `/api/projects/{project}/task/{task}` | dhtmlx DataProcessor update endpoint. |
 | `PATCH` | `/api/projects/{project}/issues/{issue}/dates` | Update dates and explicit Gantt type. |
 | `POST` | `/api/projects/{project}/reorder` | Persist row order. |
 | `POST` | `/api/cache/invalidate` | Clear one project cache or all cached data. |
 
 `GET .../data` supports `include_cycles`, `include_modules`, `include_relations`, and `bypass_cache` query parameters.
+
+### Management overview
+
+The Gantt UI's **Management Overview** mode accepts multiple projects from the
+workspace project list. The API token must be able to read every selected
+project; unknown or inaccessible IDs are rejected. Only active Plane work items
+with a configured reporting label are included. Configure the default labels
+with `PLANE_OVERVIEW_LABELS` as a comma-separated, case-insensitive list. The
+default is `Overview`.
+
+The response contains one project row per selected project and separate task
+segments for that row. Tasks without dates are excluded from the timeline and
+reported in `meta.excluded_undated_count`. The overview is read-only: task
+details and links to Plane remain available, while structural edits and
+cross-project dependencies stay in the detailed project Gantt.
 
 ### Create, modules, and promotion
 

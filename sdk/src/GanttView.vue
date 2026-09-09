@@ -47,6 +47,9 @@ const props = defineProps({
   showZoomControls: { type: Boolean, default: true },
   scaleHeight: { type: Number, default: 64 },
   showProjectSelector: { type: Boolean, default: false },
+  overview: { type: Boolean, default: false },
+  overviewProjectIds: { type: Array, default: () => [] },
+  overviewLabels: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['task-click', 'task-change', 'project-change'])
@@ -110,6 +113,7 @@ const projectList = ref([])
 const selectedProject = ref(null)
 const showProjectDropdown = ref(false)
 const projectLoading = ref(false)
+const selectedOverviewIds = ref([...props.overviewProjectIds])
 
 async function fetchProjects() {
   if (!props.showProjectSelector) return
@@ -118,6 +122,14 @@ async function fetchProjects() {
     const resp = await fetch(`${props.apiBase}/api/projects`)
     if (resp.ok) {
       projectList.value = await resp.json()
+      if (props.overview) {
+        if (!selectedOverviewIds.value.length) {
+          selectedOverviewIds.value = projectList.value.map((item) => item.id)
+        }
+        await nextTick()
+        initGanttOverview()
+        return
+      }
       // Auto-select by prop or first
       const match = projectList.value.find(p => p.id === props.project || p.slug === props.project || p.identifier?.toLowerCase() === props.project?.toLowerCase())
       selectedProject.value = match || projectList.value[0] || null
@@ -132,6 +144,44 @@ async function fetchProjects() {
     }
   } catch (e) { console.error('Failed to fetch projects:', e) }
   finally { projectLoading.value = false }
+}
+
+function toggleOverviewProject(projectId) {
+  selectedOverviewIds.value = selectedOverviewIds.value.includes(projectId)
+    ? selectedOverviewIds.value.filter((id) => id !== projectId)
+    : [...selectedOverviewIds.value, projectId]
+}
+
+function applyOverview() {
+  showProjectDropdown.value = false
+  if (controller) controller.destroy()
+  nextTick(() => initGanttOverview())
+}
+
+function initGanttOverview() {
+  if (!containerRef.value || !selectedOverviewIds.value.length) return
+  controller = mountGantt({
+    container: containerRef.value,
+    project: 'overview',
+    apiBase: props.apiBase,
+    editable: false,
+    scale: currentScale.value,
+    planeUrl: props.planeUrl,
+    workspaceSlug: props.workspaceSlug,
+    showPopup: true,
+    showGrid: taskTableVisible.value,
+    showZoomControls: props.showZoomControls,
+    scaleHeight: props.scaleHeight,
+    overview: true,
+    overviewProjectIds: selectedOverviewIds.value,
+    overviewLabels: props.overviewLabels,
+    onTaskClick: (task) => emit('task-click', task),
+    onScaleChange: (level) => { currentScale.value = level },
+  })
+  const readyController = controller
+  controller.ready.then(() => {
+    if (controller === readyController) onGanttReady()
+  })
 }
 
 function selectProject(proj) {
@@ -545,11 +595,18 @@ function handleExport() {
         <!-- Project selector — immediately left of Trash -->
         <div v-if="showProjectSelector" class="gv-dropdown-wrap">
           <button class="gv-btn gv-project-btn gv-project-trigger" @click="showProjectDropdown = !showProjectDropdown">
-            {{ selectedProject?.title || selectedProject?.identifier || 'Select project' }} ▾
+            {{ overview ? `${selectedOverviewIds.length} projects` : (selectedProject?.title || selectedProject?.identifier || 'Select project') }} ▾
           </button>
           <div v-if="showProjectDropdown" class="gv-dropdown-menu gv-project-menu gv-project-menu-right">
             <button v-if="projectLoading" class="gv-dropdown-item" disabled>Loading...</button>
-            <button
+            <template v-if="overview">
+              <label v-for="p in projectList" :key="p.id" class="gv-dropdown-item gv-project-check">
+                <input type="checkbox" :checked="selectedOverviewIds.includes(p.id)" @change="toggleOverviewProject(p.id)">
+                <span><span class="gv-project-id">{{ p.identifier }}</span> {{ p.title }}</span>
+              </label>
+              <button class="gv-dropdown-item gv-project-apply" :disabled="!selectedOverviewIds.length" @click="applyOverview">Apply selection</button>
+            </template>
+            <button v-else
               v-for="p in projectList"
               :key="p.id"
               class="gv-dropdown-item"
@@ -607,7 +664,7 @@ function handleExport() {
       <!-- Empty state — shown whenever no project is selected. On a normal
            load a project auto-selects, so this appears only when auto-select
            can't resolve one (still loading, fetch error, or no projects). -->
-      <div v-if="showProjectSelector && !selectedProject" class="gv-empty">
+      <div v-if="showProjectSelector && !overview && !selectedProject" class="gv-empty">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
