@@ -884,6 +884,9 @@ const GANTT_CUSTOM_CSS = `
  * @param {Function} [options.onTaskClick] - Callback when task is clicked
  * @param {Function} [options.onTaskChange] - Callback when task is updated
  * @param {Function} [options.onScaleChange] - Callback when zoom controls change the scale
+ * @param {boolean} [options.overview=false] - Render the cross-project management overview
+ * @param {string[]} [options.overviewProjectIds=[]] - Selected project IDs for the overview
+ * @param {string[]} [options.overviewLabels=[]] - Plane labels included in the overview
  * @returns {Object} Controller with destroy() method
  */
 export function mountGantt(options) {
@@ -903,9 +906,12 @@ export function mountGantt(options) {
     onTaskClick = null,
     onTaskChange = null,
     onScaleChange = null,
+    overview = false,
+    overviewProjectIds = [],
+    overviewLabels = [],
   } = options
 
-  if (!container || !project) {
+  if (!container || (!project && !overview)) {
     throw new Error('mountGantt requires "container" and "project" options.')
   }
 
@@ -942,6 +948,11 @@ export function mountGantt(options) {
   let containerResizeFrame = null
   let gridVisible = showGrid !== false
   let currentScale = SCALES[scale] ? scale : 'month'
+  let overviewSegments = []
+  let overviewProjects = []
+  let overviewSegmentHost = null
+  let overviewTimelineBar = null
+  let showOverviewTaskPopup = null
 
   function updateZoomButtons() {
     if (!zoomControlsEl) return
@@ -985,13 +996,13 @@ export function mountGantt(options) {
 
     // Configuration
     gantt.config.date_format = DATE_FMT
-    gantt.config.drag_progress = editable
-    gantt.config.drag_links = editable
-    gantt.config.drag_move = editable
-    gantt.config.drag_resize = editable
-    gantt.config.order_branch = editable
+    gantt.config.drag_progress = editable && !overview
+    gantt.config.drag_links = editable && !overview
+    gantt.config.drag_move = editable && !overview
+    gantt.config.drag_resize = editable && !overview
+    gantt.config.order_branch = editable && !overview
     gantt.config.open_tree_initially = true
-    gantt.config.readonly = !editable
+    gantt.config.readonly = !editable || overview
     // A Plane issue with sub-issues is still a Task. Only Plane Modules are
     // Projects, so dhtmlx must not infer project type from child rows.
     gantt.config.auto_types = false
@@ -1004,7 +1015,7 @@ export function mountGantt(options) {
     gantt.config.timeline_placeholder = { height: 0 }
     gantt.config.grid_resize = true
     gantt.config.show_grid = gridVisible
-    gantt.config.columns = editable ? EDITABLE_COLUMNS : DEFAULT_COLUMNS
+    gantt.config.columns = editable && !overview ? EDITABLE_COLUMNS : DEFAULT_COLUMNS
     gantt.config.scales = SCALES[currentScale]
 
     // Lightbox (for editable mode)
@@ -1030,7 +1041,7 @@ export function mountGantt(options) {
     // Task styling — status-based CSS classes (synced with project.html)
     gantt.templates.task_class = function(start, end, task) {
       var classes = []
-      if (task.type === 'project') classes.push('gantt_project')
+      if (task.type === 'project' || task.plane_type === 'overview-project') classes.push('gantt_project')
       else if (task.type === 'milestone') classes.push('milestone_task')
       else classes.push('gantt_task')
 
@@ -1179,10 +1190,11 @@ export function mountGantt(options) {
 
         // Build Plane link
         let planeLink = ''
-        if (planeUrl && workspaceSlug && projectId && task.plane_id) {
+        const linkProjectId = task.project_id || projectId
+        if (planeUrl && workspaceSlug && linkProjectId && task.plane_id) {
           const planeHref = isModule
-            ? planeUrl + '/' + workspaceSlug + '/projects/' + projectId + '/modules/' + task.plane_id
-            : planeUrl + '/' + workspaceSlug + '/projects/' + projectId + '/issues/' + task.plane_id
+            ? planeUrl + '/' + workspaceSlug + '/projects/' + linkProjectId + '/modules/' + task.plane_id
+            : planeUrl + '/' + workspaceSlug + '/projects/' + linkProjectId + '/issues/' + task.plane_id
           planeLink = '<a href="' + planeHref + '" target="_blank" class="gantt-task-popup-btn btn-plane">View in Plane</a>'
         }
 
@@ -1238,6 +1250,7 @@ export function mountGantt(options) {
         if (onTaskClick) onTaskClick(task)
         return true
       })
+      showOverviewTaskPopup = showTaskPopup
     } else if (onTaskClick) {
       gantt.attachEvent('onTaskClick', (id) => {
         onTaskClick(gantt.getTask(id))
@@ -1286,8 +1299,144 @@ export function mountGantt(options) {
     }
 
     // Init
-    const apiUrl = `${apiBase}/api/projects/${project}`
+    const apiUrl = overview
+      ? `${apiBase}/api/overview/data?${overviewProjectIds.map((id) => 'project_ids=' + encodeURIComponent(id)).join('&')}${overviewLabels.length ? '&' + overviewLabels.map((label) => 'labels=' + encodeURIComponent(label)).join('&') : ''}`
+      : `${apiBase}/api/projects/${project}`
     gantt.init(container)
+
+    function renderOverviewSegments() {
+      if (!overview || destroyed || !gantt.$task_data) return
+      if (overviewSegmentHost && overviewSegmentHost.parentNode) overviewSegmentHost.remove()
+      overviewSegmentHost = document.createElement('div')
+      overviewSegmentHost.className = 'mcmc-gantt-overview-segments'
+      overviewSegmentHost.setAttribute('aria-label', 'Project task segments')
+      gantt.$task_data.appendChild(overviewSegmentHost)
+      const projectIndex = new Map(overviewProjects.map((item, index) => [item.id, index]))
+      gantt.$task_data.style.position = 'relative'
+      if (gantt.$grid_data) gantt.$grid_data.style.position = 'relative'
+      container.querySelectorAll('.gantt_task_row, .gantt_row').forEach((element) => {
+        element.style.display = 'none'
+      })
+      overviewProjects.forEach((project, index) => {
+        const top = index * 72
+        const timelineRow = document.createElement('div')
+        timelineRow.className = 'mcmc-gantt-overview-project-row'
+        timelineRow.style.position = 'absolute'
+        timelineRow.style.left = '0'
+        timelineRow.style.right = '0'
+        timelineRow.style.top = `${top}px`
+        timelineRow.style.height = '72px'
+        timelineRow.style.background = index % 2 ? '#ffffff' : '#f8fafc'
+        timelineRow.style.borderBottom = '1px solid #e2e8f0'
+        overviewSegmentHost.appendChild(timelineRow)
+        if (gantt.$grid_data) {
+          const gridRow = document.createElement('div')
+          gridRow.className = 'mcmc-gantt-overview-project-grid-row'
+          gridRow.style.position = 'absolute'
+          gridRow.style.left = '0'
+          gridRow.style.right = '0'
+          gridRow.style.top = `${top}px`
+          gridRow.style.height = '72px'
+          gridRow.style.display = 'flex'
+          gridRow.style.alignItems = 'center'
+          gridRow.style.paddingLeft = '8px'
+          gridRow.style.background = timelineRow.style.background
+          gridRow.style.borderBottom = '1px solid #e2e8f0'
+          gridRow.style.fontWeight = '600'
+          gridRow.style.color = '#334155'
+          gridRow.textContent = `${project.identifier || ''} ${project.title}`.trim()
+          gantt.$grid_data.appendChild(gridRow)
+        }
+      })
+      const rows = new Map()
+      for (const segment of overviewSegments) {
+        if (!rows.has(segment.project_id)) rows.set(segment.project_id, [])
+        rows.get(segment.project_id).push(segment)
+      }
+      for (const [projectId, projectSegments] of rows) {
+        const row = { top: (projectIndex.get(projectId) || 0) * 72, height: 72 }
+        const firstDate = projectSegments.reduce((value, segment) => value && value < segment.start_date ? value : segment.start_date, '')
+        const lastDate = projectSegments.reduce((value, segment) => value && value > segment.end_date ? value : segment.end_date, '')
+        const barStart = gantt.posFromDate(new Date(firstDate))
+        const barEndDate = new Date(lastDate)
+        barEndDate.setDate(barEndDate.getDate() + 1)
+        const barEnd = gantt.posFromDate(barEndDate)
+        overviewTimelineBar = document.createElement('div')
+        overviewTimelineBar.className = 'mcmc-gantt-overview-timeline-bar'
+        overviewTimelineBar.style.position = 'absolute'
+        overviewTimelineBar.style.left = `${barStart}px`
+        overviewTimelineBar.style.top = `${row.top + 26}px`
+        overviewTimelineBar.style.width = `${Math.max(8, barEnd - barStart)}px`
+        overviewTimelineBar.style.height = '20px'
+        overviewTimelineBar.style.borderRadius = '10px'
+        overviewTimelineBar.style.background = '#9ee8c8'
+        overviewTimelineBar.style.opacity = '0.9'
+        overviewTimelineBar.style.zIndex = '1'
+        overviewSegmentHost.appendChild(overviewTimelineBar)
+      }
+      const projectLabelIndex = new Map()
+      for (const segment of overviewSegments) {
+        const labelIndex = projectLabelIndex.get(segment.project_id) || 0
+        projectLabelIndex.set(segment.project_id, labelIndex + 1)
+        const projectRow = { top: (projectIndex.get(segment.project_id) || 0) * 72, height: 72 }
+        const start = new Date(segment.start_date)
+        const markerDate = new Date(segment.end_date || segment.start_date)
+        const left = gantt.posFromDate(markerDate)
+        if (left === undefined) continue
+        const node = document.createElement('div')
+        node.className = 'mcmc-gantt-overview-segment status-' + (segment.status || 'to-do').toLowerCase().replace(/\s+/g, '-')
+        node.style.left = left + 'px'
+        node.style.top = projectRow.top + Math.max(4, (projectRow.height - 24) / 2) + 'px'
+        node.style.position = 'absolute'
+        node.style.display = 'flex'
+        node.style.alignItems = 'center'
+        node.style.transform = 'translateX(-6px)'
+        node.style.height = '24px'
+        node.style.zIndex = '8'
+        node.style.cursor = 'pointer'
+        node.title = segment.project_title + ': ' + segment.text
+        node.dataset.segmentId = segment.id
+        const marker = document.createElement('button')
+        marker.type = 'button'
+        marker.className = 'mcmc-gantt-overview-marker'
+        marker.setAttribute('aria-label', segment.project_title + ': ' + segment.text)
+        marker.style.width = '14px'
+        marker.style.height = '14px'
+        marker.style.flex = '0 0 14px'
+        marker.style.padding = '0'
+        marker.style.border = '2px solid #ffffff'
+        marker.style.borderRadius = '2px'
+        marker.style.transform = 'rotate(45deg)'
+        marker.style.boxShadow = '0 0 0 1px rgba(15, 23, 42, 0.24)'
+        marker.style.background = segment.status === 'complete' ? '#16a34a' : segment.status === 'in progress' ? '#2563eb' : '#f59e0b'
+        const label = document.createElement('span')
+        label.className = 'mcmc-gantt-overview-label'
+        label.textContent = segment.text
+        label.style.position = 'absolute'
+        label.style.left = '20px'
+        label.style.top = labelIndex % 2 ? '16px' : '-24px'
+        label.style.whiteSpace = 'normal'
+        label.style.fontSize = '10px'
+        label.style.fontWeight = '600'
+        label.style.color = '#334155'
+        label.style.width = 'fit-content'
+        label.style.maxWidth = 'min(280px, 30vw)'
+        label.style.lineHeight = '14px'
+        label.style.wordBreak = 'normal'
+        label.style.background = 'rgba(255, 255, 255, 0.94)'
+        label.style.border = '1px solid rgba(148, 163, 184, 0.45)'
+        label.style.borderRadius = '3px'
+        label.style.padding = '2px 5px'
+        label.style.pointerEvents = 'none'
+        node.append(marker, label)
+        node.addEventListener('click', (event) => {
+          event.stopPropagation()
+          if (onTaskClick) onTaskClick(segment)
+          if (showOverviewTaskPopup) showOverviewTaskPopup(segment)
+        })
+        overviewSegmentHost.appendChild(node)
+      }
+    }
 
     // Plane-style current-time indicator: one uninterrupted line across the
     // viewport, positioned within today's cell using the actual current time.
@@ -1625,16 +1774,75 @@ export function mountGantt(options) {
       updateZoomButtons()
     }
 
-    gantt.load(`${apiUrl}/data`, () => {
-      gantt.showDate(new Date())
+    function finishLoad(response) {
+      if (overview) {
+        const payload = typeof response === 'string' ? JSON.parse(response) : response
+        overviewSegments = payload.segments || []
+        overviewProjects = payload.projects || []
+        const projectTasks = (payload.projects || []).map((item) => {
+          const start = item.start_date || new Date().toISOString().slice(0, 10)
+          const end = item.end_date || start
+          const endDate = new Date(end)
+          const startDate = new Date(start)
+          return {
+            id: item.id,
+            text: (item.identifier ? item.identifier + ' · ' : '') + item.title,
+            start_date: start + ' 00:00',
+            end_date: end + ' 00:00',
+            duration: Math.max(1, Math.ceil((endDate - startDate) / 86400000)),
+            type: 'task',
+            parent: 0,
+            progress: item.progress || 0,
+            status: 'in progress',
+            project_id: item.id,
+            plane_type: 'overview-project',
+          }
+        })
+        gantt.clearAll()
+        for (const projectTask of projectTasks) gantt.addTask(projectTask, 0)
+        if (typeof gantt.setSizes === 'function') gantt.setSizes()
+        if (typeof gantt.render === 'function') gantt.render()
+      }
+      const overviewStart = overview && overviewSegments.length
+        ? new Date(overviewSegments[0].start_date + 'T00:00:00')
+        : new Date()
+      gantt.showDate(overviewStart)
       scheduleTaskLabelLayout()
       renderTodayLine()
+      renderOverviewSegments()
+      if (overview) {
+        window.requestAnimationFrame(() => {
+          if (destroyed) return
+          if (typeof gantt.setSizes === 'function') gantt.setSizes()
+          if (typeof gantt.render === 'function') gantt.render()
+          renderOverviewSegments()
+        })
+      }
       // Ensure Add Task is attached after data/header rendering settles.
       if (editable) scheduleAddTaskButton()
       // Signal that init + first data load are complete so consumers can
       // safely render/read the datastore without racing DHTMLX setup.
       if (resolveReady) { resolveReady(); resolveReady = null }
-    })
+    }
+
+    if (overview) {
+      fetch(apiUrl)
+        .then((response) => {
+          if (!response.ok) throw new Error(`Overview request failed (${response.status})`)
+          return response.json()
+        })
+        .then(finishLoad)
+        .catch((error) => {
+          console.error('Failed to load Gantt overview:', error)
+          if (resolveReady) { resolveReady(); resolveReady = null }
+        })
+    } else {
+      gantt.load(`${apiUrl}/data`, finishLoad)
+    }
+    if (overview) {
+      gantt.attachEvent('onGanttRender', renderOverviewSegments)
+      gantt.attachEvent('onGanttScroll', renderOverviewSegments)
+    }
 
     // Add Task button in grid header. DHTMLX owns and may replace the header
     // cell during renders, so retain one button and reattach it to the current

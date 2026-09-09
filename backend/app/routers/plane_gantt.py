@@ -18,7 +18,7 @@ from html import escape
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.config import PLANE_BASE_URL, PLANE_WORKSPACE_SLUG
+from app.config import PLANE_BASE_URL, PLANE_OVERVIEW_LABELS, PLANE_WORKSPACE_SLUG
 from app.services.plane import PlaneService, PlaneAPIError
 from app.services.plane_transformer import (
     GANTT_MILESTONE_LABEL_NAME,
@@ -26,6 +26,7 @@ from app.services.plane_transformer import (
     transform_projects_to_list,
 )
 from app.services import cache, trash
+from app.services.portfolio import build_project_overview
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +199,71 @@ async def list_projects():
     except PlaneAPIError as e:
         logger.error("Plane API error listing projects: %s", e.detail)
         raise HTTPException(status_code=e.status_code, detail=e.detail)
+    finally:
+        await svc.close()
+
+
+@router.get("/overview/data")
+async def get_overview_data(
+    project_ids: list[str] = Query(..., min_length=1),
+    labels: list[str] | None = Query(None),
+):
+    """Return a read-only management timeline for explicitly selected projects."""
+    requested_labels = tuple(
+        label.strip().casefold()
+        for label in (labels or PLANE_OVERVIEW_LABELS)
+        if label.strip()
+    )
+    if not requested_labels:
+        raise HTTPException(status_code=400, detail="At least one overview label is required.")
+
+    svc = _get_plane_service()
+    try:
+        available = await svc.list_projects()
+        available_by_key = {
+            key: project
+            for project in available
+            for key in (
+                str(project.get("id", "")),
+                str(project.get("identifier", "")).casefold(),
+            )
+            if key
+        }
+        selected = []
+        seen = set()
+        unknown = []
+        for requested_id in project_ids:
+            project = available_by_key.get(requested_id) or available_by_key.get(requested_id.casefold())
+            if project is None:
+                unknown.append(requested_id)
+            elif project["id"] not in seen:
+                selected.append(project)
+                seen.add(project["id"])
+        if unknown:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Projects are not available to this API token: {', '.join(unknown)}",
+            )
+
+        async def fetch_project(project):
+            project_id = project["id"]
+            issues, states = await asyncio.gather(
+                svc.list_issues(project_id, expand="assignees,state,labels"),
+                svc.list_states(project_id),
+            )
+            return project_id, issues, {state["id"]: state for state in states}
+
+        fetched = await asyncio.gather(*(fetch_project(project) for project in selected))
+        issues_by_project = {project_id: issues for project_id, issues, _ in fetched}
+        states_by_project = {project_id: states for project_id, _, states in fetched}
+        return build_project_overview(
+            selected,
+            issues_by_project,
+            states_by_project,
+            requested_labels,
+        )
+    except PlaneAPIError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     finally:
         await svc.close()
 

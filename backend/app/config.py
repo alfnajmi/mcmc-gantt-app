@@ -10,6 +10,13 @@ from pythonjsonlogger import jsonlogger
 PLANE_BASE_URL: str = os.environ.get("PLANE_BASE_URL", "").rstrip("/")
 PLANE_API_TOKEN: str = os.environ.get("PLANE_API_TOKEN", "")
 PLANE_WORKSPACE_SLUG: str = os.environ.get("PLANE_WORKSPACE_SLUG", "")
+PLANE_OVERVIEW_LABELS: tuple[str, ...] = tuple(
+    label.strip().casefold()
+    for label in os.environ.get(
+        "PLANE_OVERVIEW_LABELS", "Overview"
+    ).split(",")
+    if label.strip()
+)
 
 if not PLANE_BASE_URL or not PLANE_API_TOKEN or not PLANE_WORKSPACE_SLUG:
     print(
