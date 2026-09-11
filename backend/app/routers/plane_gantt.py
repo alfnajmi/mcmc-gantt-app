@@ -43,6 +43,16 @@ def _get_plane_service() -> PlaneService:
     return PlaneService()
 
 
+async def _get_projects_raw(svc: PlaneService) -> list[dict]:
+    """Fetch raw project list from cache or Plane."""
+    cached = await cache.get("projects", "raw_list")
+    if cached is not None:
+        return cached
+    projects = await svc.list_projects()
+    await cache.set("projects", "raw_list", value=projects)
+    return projects
+
+
 async def _resolve_project_id(svc: PlaneService, project_id: str) -> str:
     """
     Resolve a project identifier to its UUID.
@@ -57,7 +67,7 @@ async def _resolve_project_id(svc: PlaneService, project_id: str) -> str:
         return project_id
 
     # Otherwise, search by identifier (case-insensitive)
-    projects = await svc.list_projects()
+    projects = await _get_projects_raw(svc)
     slug_upper = project_id.upper()
     for proj in projects:
         if proj.get("identifier", "").upper() == slug_upper:
@@ -192,7 +202,7 @@ async def list_projects():
 
     svc = _get_plane_service()
     try:
-        projects = await svc.list_projects()
+        projects = await _get_projects_raw(svc)
         result = transform_projects_to_list(projects)
         await cache.set("projects", "list", value=result)
         return result
@@ -207,6 +217,7 @@ async def list_projects():
 async def get_overview_data(
     project_ids: list[str] = Query(..., min_length=1),
     labels: list[str] | None = Query(None),
+    bypass_cache: bool = Query(False, description="Force fresh data from Plane"),
 ):
     """Return a read-only management timeline for explicitly selected projects."""
     requested_labels = tuple(
@@ -217,9 +228,18 @@ async def get_overview_data(
     if not requested_labels:
         raise HTTPException(status_code=400, detail="At least one overview label is required.")
 
+    cache_variant = f"v1_{','.join(sorted(project_ids))}__{','.join(sorted(requested_labels))}"
+
+    if not bypass_cache:
+        cached = await cache.get("overview_data", cache_variant)
+        if cached is not None:
+            logger.info("overview_data cache HIT")
+            return cached
+        logger.info("overview_data cache MISS")
+
     svc = _get_plane_service()
     try:
-        available = await svc.list_projects()
+        available = await _get_projects_raw(svc)
         available_by_key = {
             key: project
             for project in available
@@ -256,12 +276,14 @@ async def get_overview_data(
         fetched = await asyncio.gather(*(fetch_project(project) for project in selected))
         issues_by_project = {project_id: issues for project_id, issues, _ in fetched}
         states_by_project = {project_id: states for project_id, _, states in fetched}
-        return build_project_overview(
+        result = build_project_overview(
             selected,
             issues_by_project,
             states_by_project,
             requested_labels,
         )
+        await cache.set("overview_data", cache_variant, value=result)
+        return result
     except PlaneAPIError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     finally:
@@ -309,10 +331,28 @@ async def get_project_data(
 
     Accepts either a UUID or a project identifier (e.g., 'persada').
     """
+    cache_variant = f"plane_modules_v3_{include_cycles}_{include_modules}_{include_relations}"
+
+    if not bypass_cache:
+        cached = await cache.get("project_data", project_id.casefold(), cache_variant)
+        if cached is not None:
+            logger.info("project_data cache HIT project_id=%s", project_id)
+            return cached
+
     svc = _get_plane_service()
     try:
         # Resolve slug/identifier to UUID
         resolved_id = await _resolve_project_id(svc, project_id)
+
+        if not bypass_cache:
+            cached = await cache.get("project_data", resolved_id, cache_variant)
+            if cached is not None:
+                logger.info("project_data cache HIT resolved_id=%s", resolved_id)
+                await cache.set("project_data", project_id.casefold(), cache_variant, value=cached)
+                return cached
+            logger.info("project_data cache MISS project=%s", resolved_id)
+        else:
+            logger.info("project_data cache BYPASS project=%s", resolved_id)
 
         # A trashed module can leave its member work items visible as ordinary
         # project issues in some Plane versions. Hide the recorded members until
@@ -330,19 +370,6 @@ async def get_project_data(
                 else record.get("member_issue_ids", [])
             )
         }
-
-        # Version the representation so deployments do not reuse cached payloads
-        # from the former same-date-implies-milestone transformer.
-        cache_variant = f"plane_modules_v3_{include_cycles}_{include_modules}_{include_relations}"
-
-        if not bypass_cache:
-            cached = await cache.get("project_data", resolved_id, cache_variant)
-            if cached is not None:
-                logger.info("project_data cache HIT project=%s", resolved_id)
-                return cached
-            logger.info("project_data cache MISS project=%s", resolved_id)
-        else:
-            logger.info("project_data cache BYPASS project=%s", resolved_id)
 
         # Fetch labels as expanded objects so milestone type is explicit rather
         # than inferred from equal start and target dates.
@@ -432,6 +459,7 @@ async def get_project_data(
         )
 
         await cache.set("project_data", resolved_id, cache_variant, value=result)
+        await cache.set("project_data", project_id.casefold(), cache_variant, value=result)
         return result
 
     except PlaneAPIError as e:

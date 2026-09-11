@@ -47,15 +47,25 @@ const props = defineProps({
   showZoomControls: { type: Boolean, default: true },
   scaleHeight: { type: Number, default: 64 },
   showProjectSelector: { type: Boolean, default: false },
+  showViewSelector: { type: Boolean, default: false },
   overview: { type: Boolean, default: false },
   overviewProjectIds: { type: Array, default: () => [] },
   overviewLabels: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['task-click', 'task-change', 'project-change'])
+const emit = defineEmits(['task-click', 'task-change', 'project-change', 'view-change', 'update:overview'])
 
 const containerRef = ref(null)
 let controller = null
+
+// --- View selector ---
+const showViewDropdown = ref(false)
+
+function selectViewMode(mode) {
+  showViewDropdown.value = false
+  emit('view-change', mode)
+  emit('update:overview', mode === 'overview')
+}
 
 // --- Scale ---
 const currentScale = ref(props.scale)
@@ -114,6 +124,7 @@ const selectedProject = ref(null)
 const showProjectDropdown = ref(false)
 const projectLoading = ref(false)
 const selectedOverviewIds = ref([...props.overviewProjectIds])
+let mountedProjectId = null
 
 async function fetchProjects() {
   if (!props.showProjectSelector) return
@@ -122,6 +133,10 @@ async function fetchProjects() {
     const resp = await fetch(`${props.apiBase}/api/projects`)
     if (resp.ok) {
       projectList.value = await resp.json()
+      if (projectList.value.length) {
+        const overviewPids = projectList.value.map((p) => 'project_ids=' + encodeURIComponent(p.id)).join('&')
+        fetch(`${props.apiBase}/api/overview/data?${overviewPids}`).catch(() => {})
+      }
       if (props.overview) {
         if (!selectedOverviewIds.value.length) {
           selectedOverviewIds.value = projectList.value.map((item) => item.id)
@@ -133,13 +148,25 @@ async function fetchProjects() {
       // Auto-select by prop or first
       const match = projectList.value.find(p => p.id === props.project || p.slug === props.project || p.identifier?.toLowerCase() === props.project?.toLowerCase())
       selectedProject.value = match || projectList.value[0] || null
-      // Mount the chart with the resolved project. Without an explicit
-      // `project` prop the initial mount has no project to load, so the
-      // selector must drive the first mount once projects are known.
+
       if (selectedProject.value) {
-        if (controller) controller.destroy()
-        await nextTick()
-        initGanttWithProject(selectedProject.value.id)
+        const matchId = selectedProject.value.id
+        const matchSlug = selectedProject.value.slug
+        const matchIdent = selectedProject.value.identifier?.toLowerCase()
+        const currentMountedLower = (mountedProjectId || '').toLowerCase()
+
+        const isAlreadyMounted = mountedProjectId && (
+          currentMountedLower === matchId.toLowerCase() ||
+          currentMountedLower === (matchSlug || '').toLowerCase() ||
+          currentMountedLower === (matchIdent || '').toLowerCase() ||
+          currentMountedLower === (props.project || '').toLowerCase()
+        )
+
+        if (!isAlreadyMounted) {
+          if (controller) controller.destroy()
+          await nextTick()
+          initGanttWithProject(selectedProject.value.id)
+        }
       }
     }
   } catch (e) { console.error('Failed to fetch projects:', e) }
@@ -175,6 +202,7 @@ function initGanttOverview() {
     overview: true,
     overviewProjectIds: selectedOverviewIds.value,
     overviewLabels: props.overviewLabels,
+    columns: getColumns(),
     onTaskClick: (task) => emit('task-click', task),
     onScaleChange: (level) => { currentScale.value = level },
   })
@@ -196,6 +224,7 @@ function selectProject(proj) {
 
 function initGanttWithProject(projectId) {
   if (!containerRef.value) return
+  mountedProjectId = projectId
   controller = mountGantt({
     container: containerRef.value,
     project: projectId,
@@ -209,6 +238,7 @@ function initGanttWithProject(projectId) {
     showGrid: taskTableVisible.value,
     showZoomControls: props.showZoomControls,
     scaleHeight: props.scaleHeight,
+    columns: getColumns(),
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
     onScaleChange: (level) => { currentScale.value = level },
@@ -335,6 +365,11 @@ function handleOutsidePointerDown(event) {
       !target.closest('.gv-trash-trigger')) {
     closeTrashSidebar()
   }
+  if (showViewDropdown.value &&
+      !target.closest('.gv-view-menu') &&
+      !target.closest('.gv-view-trigger')) {
+    showViewDropdown.value = false
+  }
   if (showProjectDropdown.value &&
       !target.closest('.gv-project-menu') &&
       !target.closest('.gv-project-trigger')) {
@@ -350,12 +385,20 @@ function handleOutsidePointerDown(event) {
 // --- Gantt lifecycle ---
 onMounted(() => {
   document.addEventListener('pointerdown', handleOutsidePointerDown, true)
-  if (props.showProjectSelector) {
-    // The selector fetches projects and mounts the chart with the resolved
-    // project; a parallel empty initGantt() would load a project-less chart.
-    fetchProjects()
+  if (props.overview) {
+    if (props.showProjectSelector) {
+      fetchProjects()
+    } else {
+      initGanttOverview()
+    }
   } else {
-    initGantt()
+    // Mount the target project (or default) in parallel with project selector fetch
+    const targetProject = props.project || props.projectId || 'persada'
+    initGanttWithProject(targetProject)
+
+    if (props.showProjectSelector) {
+      fetchProjects()
+    }
   }
 })
 
@@ -387,6 +430,7 @@ function initGantt() {
     showGrid: taskTableVisible.value,
     showZoomControls: props.showZoomControls,
     scaleHeight: props.scaleHeight,
+    columns: getColumns(),
     onTaskClick: (task) => emit('task-click', task),
     onTaskChange: (task) => emit('task-change', task),
     onScaleChange: (level) => { currentScale.value = level },
@@ -407,6 +451,18 @@ function ganttInstance() {
   return controller && controller.getInstance ? controller.getInstance() : null
 }
 
+function getColumns() {
+  const cols = [{ name: 'text', label: 'Name', tree: true, width: 200, resize: true }]
+  if (shownFields.start_date) cols.push({ name: 'start_date', label: 'Start', align: 'center', width: 90, resize: true, template: t => fmtCol(t.start_date) })
+  if (shownFields.end_date) cols.push({ name: 'end_date', label: 'Due', align: 'center', width: 90, resize: true, template: t => fmtCol(t.end_date) })
+  if (shownFields.duration) cols.push({ name: 'duration', label: 'Days', align: 'center', width: 45 })
+  if (shownFields.status) cols.push({ name: 'status', label: 'Status', align: 'center', width: 80, template: t => capitalize(t.status) })
+  if (shownFields.assignee) cols.push({ name: 'assignee', label: 'Assignee', align: 'center', width: 90, template: t => t.assignee || '' })
+  if (shownFields.priority) cols.push({ name: 'priority', label: 'Priority', align: 'center', width: 70, template: t => t.priority || '' })
+  if (shownFields.progress) cols.push({ name: 'progress', label: '%', align: 'center', width: 45, template: t => Math.round((t.progress || 0) * 100) + '%' })
+  return cols
+}
+
 function onGanttReady() {
   rebuildColumns()
   extractFilterOptions()
@@ -423,15 +479,7 @@ function onGanttReady() {
 function rebuildColumns() {
   const gantt = ganttInstance()
   if (!gantt) return
-  const cols = [{ name: 'text', label: 'Name', tree: true, width: 200, resize: true }]
-  if (shownFields.start_date) cols.push({ name: 'start_date', label: 'Start', align: 'center', width: 90, resize: true, template: t => fmtCol(t.start_date) })
-  if (shownFields.end_date) cols.push({ name: 'end_date', label: 'Due', align: 'center', width: 90, resize: true, template: t => fmtCol(t.end_date) })
-  if (shownFields.duration) cols.push({ name: 'duration', label: 'Days', align: 'center', width: 45 })
-  if (shownFields.status) cols.push({ name: 'status', label: 'Status', align: 'center', width: 80, template: t => capitalize(t.status) })
-  if (shownFields.assignee) cols.push({ name: 'assignee', label: 'Assignee', align: 'center', width: 90, template: t => t.assignee || '' })
-  if (shownFields.priority) cols.push({ name: 'priority', label: 'Priority', align: 'center', width: 70, template: t => t.priority || '' })
-  if (shownFields.progress) cols.push({ name: 'progress', label: '%', align: 'center', width: 45, template: t => Math.round((t.progress || 0) * 100) + '%' })
-  gantt.config.columns = cols
+  gantt.config.columns = getColumns()
   gantt.render()
 }
 
@@ -592,6 +640,30 @@ function handleExport() {
         <button class="gv-btn" @click="handleExport">Export</button>
       </div>
       <div class="gv-toolbar-right">
+        <!-- View selector -->
+        <div v-if="showViewSelector" class="gv-dropdown-wrap gv-view-wrap">
+          <span class="gv-view-label">View</span>
+          <button class="gv-btn gv-view-trigger" @click="showViewDropdown = !showViewDropdown">
+            {{ overview ? 'Management overview' : 'Detailed project Gantt' }} ▾
+          </button>
+          <div v-if="showViewDropdown" class="gv-dropdown-menu gv-view-menu gv-project-menu-right">
+            <button
+              class="gv-dropdown-item"
+              :class="{ active: !overview }"
+              @click="selectViewMode('detail')"
+            >
+              Detailed project Gantt
+            </button>
+            <button
+              class="gv-dropdown-item"
+              :class="{ active: overview }"
+              @click="selectViewMode('overview')"
+            >
+              Management overview
+            </button>
+          </div>
+        </div>
+
         <!-- Project selector — immediately left of Trash -->
         <div v-if="showProjectSelector" class="gv-dropdown-wrap">
           <button class="gv-btn gv-project-btn gv-project-trigger" @click="showProjectDropdown = !showProjectDropdown">
@@ -773,6 +845,20 @@ function handleExport() {
 .gantt-view .gv-toolbar .gv-table-toggle.active {
   background: #e2e8f0 !important;
   color: #334155 !important;
+}
+.gv-view-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.gv-view-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  user-select: none;
+}
+.gv-view-menu {
+  min-width: 175px;
 }
 .gv-project-btn { font-weight: 600; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 12px; }
 .gv-project-menu { min-width: 220px; max-height: 260px; overflow-y: auto; }

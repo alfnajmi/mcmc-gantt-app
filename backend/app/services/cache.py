@@ -121,22 +121,23 @@ async def invalidate(namespace: str, *parts: str):
 
 async def invalidate_project(project_id: str):
     """
-    Invalidate all cached data for a specific project.
+    Invalidate all cached data for a specific project, including overview entries.
     Uses pattern-based deletion.
     """
     if not _available:
         return
 
-    pattern = f"gantt:plane:*:{project_id}*"
+    patterns = [f"gantt:plane:*:{project_id}*", "gantt:plane:overview_data:*"]
     try:
-        cursor = 0
-        while True:
-            cursor, keys = await _redis.scan(cursor, match=pattern, count=100)
-            if keys:
-                await _redis.delete(*keys)
-                logger.debug("Cache INVALIDATED %d keys for project %s", len(keys), project_id)
-            if cursor == 0:
-                break
+        for pattern in patterns:
+            cursor = 0
+            while True:
+                cursor, keys = await _redis.scan(cursor, match=pattern, count=100)
+                if keys:
+                    await _redis.delete(*keys)
+                    logger.debug("Cache INVALIDATED %d keys for pattern %s", len(keys), pattern)
+                if cursor == 0:
+                    break
     except Exception as e:
         logger.warning("Cache invalidate_project error: %s", e)
 
