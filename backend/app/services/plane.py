@@ -47,13 +47,17 @@ class PlaneService:
         if not self.workspace_slug:
             raise ValueError("PLANE_WORKSPACE_SLUG is not configured")
 
+        # Fail fast on connectivity problems so the API returns a quick, clear
+        # error instead of hanging on a long single timeout. A slow/unreachable
+        # Plane host (DNS, firewall/egress, or Plane down) should surface in a
+        # few seconds, not 30. Read timeout stays generous for large payloads.
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             headers={
                 "X-API-Key": self.api_token,
                 "Content-Type": "application/json",
             },
-            timeout=30.0,
+            timeout=httpx.Timeout(15.0, connect=5.0),
         )
 
     async def close(self):
@@ -64,11 +68,29 @@ class PlaneService:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        """
+        Issue an HTTP request, converting httpx transport failures into
+        PlaneAPIError so callers/routers handle a single error type.
+
+        A timeout becomes 504 and any other connection failure (DNS, refused,
+        network unreachable) becomes 502. This keeps an unreachable Plane host
+        from bubbling up as an opaque 500 after a long hang.
+        """
+        try:
+            return await self._client.request(method, path, **kwargs)
+        except httpx.TimeoutException as exc:
+            logger.warning("Plane request timed out: %s %s (%s)", method, path, exc)
+            raise PlaneAPIError(504, f"Plane request timed out: {exc}") from exc
+        except httpx.TransportError as exc:
+            logger.warning("Cannot reach Plane: %s %s (%s)", method, path, exc)
+            raise PlaneAPIError(502, f"Cannot reach Plane: {exc}") from exc
+
     async def _get(self, path: str, params: dict | None = None) -> Any:
         """Make a GET request and return parsed JSON."""
         url = f"{_API_PREFIX}{path}"
         logger.debug("GET %s params=%s", url, params)
-        resp = await self._client.get(url, params=params)
+        resp = await self._request("GET", url, params=params)
         if resp.status_code >= 400:
             raise PlaneAPIError(resp.status_code, resp.text[:500])
         return resp.json()
@@ -105,16 +127,14 @@ class PlaneService:
 
     async def _write(self, method: str, path: str, payload: dict) -> dict:
         """Make a JSON write request and return its response body."""
-        resp = await self._client.request(
-            method, f"{_API_PREFIX}{path}", json=payload
-        )
+        resp = await self._request(method, f"{_API_PREFIX}{path}", json=payload)
         if resp.status_code >= 400:
             raise PlaneAPIError(resp.status_code, resp.text[:500])
         return resp.json() if resp.content else {}
 
     async def _delete(self, path: str) -> None:
         """Make a permanent DELETE request."""
-        resp = await self._client.delete(f"{_API_PREFIX}{path}")
+        resp = await self._request("DELETE", f"{_API_PREFIX}{path}")
         if resp.status_code >= 400:
             raise PlaneAPIError(resp.status_code, resp.text[:500])
 
@@ -207,7 +227,8 @@ class PlaneService:
 
     async def create_label(self, project_id: str, name: str) -> dict:
         """Create a project label and return it."""
-        resp = await self._client.post(
+        resp = await self._request(
+            "POST",
             f"{_API_PREFIX}{self._ws}/projects/{project_id}/labels/",
             json={"name": name},
         )
