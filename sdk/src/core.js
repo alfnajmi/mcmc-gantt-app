@@ -64,16 +64,12 @@ function isTaskOverdue(task) {
 }
 
 const DEFAULT_COLUMNS = [
-  { name: 'text', label: 'Task', tree: true, width: 220, resize: true },
-  { name: 'start_date', label: 'Start', align: 'center', width: 100, resize: true, template: function(task) {
+  { name: 'text', label: 'Name', tree: true, width: 200, resize: true },
+  { name: 'start_date', label: 'Start', align: 'center', width: 90, resize: true, template: function(task) {
     return formatDate(task.start_date)
   }},
-  { name: 'end_date', label: 'End', align: 'center', width: 100, resize: true, template: function(task) {
+  { name: 'end_date', label: 'Due', align: 'center', width: 90, resize: true, template: function(task) {
     return formatDate(task.end_date)
-  }},
-  { name: 'duration', label: 'Days', align: 'center', width: 45 },
-  { name: 'status', label: 'Status', align: 'center', width: 90, template: function(task) {
-    return capitalizeStatus(task.status)
   }},
 ]
 
@@ -909,6 +905,7 @@ export function mountGantt(options) {
     overview = false,
     overviewProjectIds = [],
     overviewLabels = [],
+    columns = null,
   } = options
 
   if (!container || (!project && !overview)) {
@@ -1015,7 +1012,7 @@ export function mountGantt(options) {
     gantt.config.timeline_placeholder = { height: 0 }
     gantt.config.grid_resize = true
     gantt.config.show_grid = gridVisible
-    gantt.config.columns = editable && !overview ? EDITABLE_COLUMNS : DEFAULT_COLUMNS
+    gantt.config.columns = columns || (editable && !overview ? EDITABLE_COLUMNS : DEFAULT_COLUMNS)
     gantt.config.scales = SCALES[currentScale]
 
     // Lightbox (for editable mode)
